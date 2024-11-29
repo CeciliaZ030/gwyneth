@@ -4,25 +4,9 @@
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-use std::sync::Arc;
 
-use gwyneth::{
-    cli::{create_gwyneth_nodes, GwynethArgs},
-    engine_api::RpcServerArgsExEx,
-    exex::GwynethFullNode,
-    GwynethNode,
-};
-use reth_chainspec::ChainSpecBuilder;
-use reth_db::init_db;
-use reth_node_builder::{
-    EngineNodeLauncher, LaunchNode, Node, NodeBuilder, NodeConfig, NodeHandle, WithLaunchContext,
-};
-use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
-use reth_provider::{
-    providers::{BlockchainProvider, BlockchainProvider2},
-    StateProviderFactory,
-};
-use reth_tasks::TaskManager;
+use gwyneth::cli::{create_gwyneth_nodes, GwynethArgs};
+use reth_node_ethereum::EthereumNode;
 
 fn main() -> eyre::Result<()> {
     println!("WTF");
@@ -44,11 +28,11 @@ fn main() -> eyre::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
+    
 
-    use super::*;
+    
     use clap::{Args, Parser};
-    use tokio::runtime::{Handle, Runtime};
+    
 
     /// A helper type to parse Args more easily
     #[derive(Parser)]

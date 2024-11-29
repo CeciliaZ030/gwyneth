@@ -108,49 +108,6 @@ pub struct FullNode<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> {
     pub data_dir: ChainPath<DataDirPath>,
 }
 
-// impl<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> FullNodeTypes for FullNode<Node,
-// AddOns>{     type DB = Node::DB;
-//     type Provider = Node::Provider;
-// }
-
-// impl<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> FullNodeComponents for FullNode<Node,
-// AddOns> {     type Pool = Node::Pool;
-
-//     type Evm = Node::Evm;
-
-//     type Executor = Node::Executor;
-
-//     type Network = Node::Network;
-
-//     fn pool(&self) -> &Self::Pool {
-//         &self.pool
-//     }
-
-//     fn evm_config(&self) -> &Self::Evm {
-//         &self.evm_config
-//     }
-
-//     fn block_executor(&self) -> &Self::Executor {
-//         &self.block_executor
-//     }
-
-//     fn provider(&self) -> &Self::Provider {
-//         &self.provider
-//     }
-
-//     fn network(&self) -> &Self::Network {
-//         &self.network
-//     }
-
-//     fn payload_builder(&self) -> &PayloadBuilderHandle<Self::Engine> {
-//         &self.payload_builder
-//     }
-
-//     fn task_executor(&self) -> &TaskExecutor {
-//         todo!()
-//     }
-// }
-
 impl<Node, AddOns> FullNode<Node, AddOns>
 where
     Node: FullNodeComponents,
