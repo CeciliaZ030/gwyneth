@@ -89,7 +89,6 @@ impl Cli {
     }
 }
 
-
 impl<Ext: clap::Args + fmt::Debug> Cli<Ext> {
     /// Parsers only the default CLI arguments
     pub fn parse_args_l2() -> Self {
@@ -263,7 +262,8 @@ mod tests {
 
     #[test]
     fn parse_color_mode() {
-        let reth = Cli::<NoArgs>::try_parse_args_from(["reth", "node", "--color", "always"]).unwrap();
+        let reth =
+            Cli::<NoArgs>::try_parse_args_from(["reth", "node", "--color", "always"]).unwrap();
         assert_eq!(reth.logs.color, ColorMode::Always);
     }
 
@@ -300,7 +300,8 @@ mod tests {
         let mut iter = SUPPORTED_CHAINS.iter();
         iter.next();
         for chain in iter {
-            let mut reth = Cli::<NoArgs>::try_parse_args_from(["reth", "node", "--chain", chain]).unwrap();
+            let mut reth =
+                Cli::<NoArgs>::try_parse_args_from(["reth", "node", "--chain", chain]).unwrap();
             reth.logs.log_file_directory =
                 reth.logs.log_file_directory.join(reth.chain.chain.to_string());
             let log_dir = reth.logs.log_file_directory;
@@ -329,13 +330,13 @@ mod tests {
     #[test]
     fn parse_l2_chains() {
         let reth = Cli::<GwynethArgs>::try_parse_args_from_l2([
-            "reth", 
+            "reth",
             "node",
-            "--l2.chain_ids", 
-            "160010", 
-            "160011", 
-            "--l2.datadirs", 
-            "path/one", 
+            "--l2.chain_ids",
+            "160010",
+            "160011",
+            "--l2.datadirs",
+            "path/one",
             "path/two",
             "--rbuilder.config",
             "path/to/config",

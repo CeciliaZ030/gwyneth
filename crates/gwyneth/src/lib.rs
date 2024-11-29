@@ -46,13 +46,16 @@ use reth_provider::{
 };
 use reth_rpc_types::{ExecutionPayloadV1, Withdrawal};
 use reth_tracing::{RethTracer, Tracer};
-use reth_transaction_pool::{blobstore, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionPool, TransactionValidationTaskExecutor};
+use reth_transaction_pool::{
+    blobstore, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool,
+    TransactionPool, TransactionValidationTaskExecutor,
+};
 use serde::{Deserialize, Serialize};
 
 pub mod builder;
+pub mod cli;
 pub mod engine_api;
 pub mod exex;
-pub mod cli;
 
 /// Gwyneth error type used in payload attributes validation
 #[derive(Debug, Error)]

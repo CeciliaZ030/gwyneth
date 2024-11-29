@@ -1,19 +1,27 @@
-use clap::{builder::Str, value_parser, Args, Parser};
 use crate::{exex::GwynethFullNode, GwynethNode};
+use clap::{builder::Str, value_parser, Args, Parser};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
-use reth_db::{init_db, mdbx::{DatabaseArguments, MaxReadTransactionDuration}, models::ClientVersion, DatabaseEnv};
+use reth_db::{
+    init_db,
+    mdbx::{DatabaseArguments, MaxReadTransactionDuration},
+    models::ClientVersion,
+    DatabaseEnv,
+};
 use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder, WithLaunchContext};
 use reth_node_core::{
     args::{
-        utils::{chain_help, chain_value_parser, SUPPORTED_CHAINS}, DatabaseArgs, DatadirArgs, DebugArgs, DevArgs, DiscoveryArgs, NetworkArgs, PayloadBuilderArgs, PruningArgs, RpcServerArgs, TxPoolArgs
-    }, dirs::{DataDirPath, MaybePlatformPath}, node_config::{self, NodeConfig}, version
+        utils::{chain_help, chain_value_parser, SUPPORTED_CHAINS},
+        DatabaseArgs, DatadirArgs, DebugArgs, DevArgs, DiscoveryArgs, NetworkArgs,
+        PayloadBuilderArgs, PruningArgs, RpcServerArgs, TxPoolArgs,
+    },
+    dirs::{DataDirPath, MaybePlatformPath},
+    node_config::{self, NodeConfig},
+    version,
 };
 use reth_node_ethereum::node::EthereumAddOns;
 use reth_provider::providers::{BlockchainProvider, BlockchainProvider2};
 use reth_tasks::TaskManager;
 use std::{ffi::OsString, fmt, future::Future, net::SocketAddr, path::PathBuf, sync::Arc};
-
-
 
 #[derive(Debug, Clone, Default, Args, PartialEq, Eq)]
 pub struct GwynethArgs {
@@ -36,10 +44,9 @@ pub struct GwynethArgs {
 }
 
 impl GwynethArgs {
-
     pub fn build_node_configs(&self) -> Vec<NodeConfig> {
         assert_eq!(self.chain_ids.len(), self.datadirs.len());
-     
+
         let network_config = NetworkArgs {
             discovery: DiscoveryArgs { disable_discovery: true, ..DiscoveryArgs::default() },
             ..NetworkArgs::default()
@@ -47,23 +54,18 @@ impl GwynethArgs {
 
         let chain_spec_builder = ChainSpecBuilder::default()
             .genesis(
-                serde_json::from_str(include_str!(
-                    "../../ethereum/node/tests/assets/genesis.json"
-                ))
-                .unwrap(),
+                serde_json::from_str(include_str!("../../ethereum/node/tests/assets/genesis.json"))
+                    .unwrap(),
             )
             .cancun_activated();
-        
-        self
-            .chain_ids
+
+        self.chain_ids
             .iter()
             .zip(self.datadirs.iter())
             .zip(self.ports.iter())
-            .map(|((chain_id, _ ), port)| {
-                let chain_spec = chain_spec_builder
-                    .clone()
-                    .chain(Chain::from_id(chain_id.clone()))
-                    .build();
+            .map(|((chain_id, _), port)| {
+                let chain_spec =
+                    chain_spec_builder.clone().chain(Chain::from_id(chain_id.clone())).build();
 
                 NodeConfig::default()
                     .with_chain(chain_spec.clone())
@@ -71,16 +73,16 @@ impl GwynethArgs {
                     .with_rpc(
                         RpcServerArgs::default()
                             .with_unused_ports() // random ws & auth port & ipc path
-                            .set_http_port(port.clone())
-                )
+                            .set_http_port(port.clone()),
+                    )
             })
             .collect::<Vec<_>>()
     }
 
-
     pub async fn configure<F, N, Fut>(&self, f: F) -> Vec<N>
-        where F: Fn(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>>>) -> Fut,
-              Fut: Future<Output = eyre::Result<N>>
+    where
+        F: Fn(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>>>) -> Fut,
+        Fut: Future<Output = eyre::Result<N>>,
     {
         let node_configs = self.build_node_configs();
         let mut gwyneth_nodes = Vec::new();
@@ -91,21 +93,24 @@ impl GwynethArgs {
                 datadir: path.clone(),
                 ..Default::default()
             });
-    
+
             let data_dir =
                 path.unwrap_or_chain_default(node_config.chain.chain, node_config.datadir.clone());
-    
+
             println!("data_dir: {:?}", data_dir);
 
             let db = init_db(
-                data_dir, 
+                data_dir,
                 DatabaseArguments::new(ClientVersion::default())
-                .with_max_read_transaction_duration(Some(MaxReadTransactionDuration::Unbounded))
-            ).unwrap();
+                    .with_max_read_transaction_duration(Some(
+                        MaxReadTransactionDuration::Unbounded,
+                    )),
+            )
+            .unwrap();
 
-            let builder = NodeBuilder::new(node_config.clone())
-                .with_database(Arc::new(db));
-            let ctx = WithLaunchContext { builder, task_executor: TaskManager::current().executor() };
+            let builder = NodeBuilder::new(node_config.clone()).with_database(Arc::new(db));
+            let ctx =
+                WithLaunchContext { builder, task_executor: TaskManager::current().executor() };
             let node = f(ctx).await.unwrap();
             gwyneth_nodes.push(node);
         }
@@ -114,11 +119,10 @@ impl GwynethArgs {
     }
 }
 
-pub async fn create_gwyneth_nodes(arg: GwynethArgs) -> Vec<GwynethFullNode>{
+pub async fn create_gwyneth_nodes(arg: GwynethArgs) -> Vec<GwynethFullNode> {
     if arg.experimental {
         arg.configure(|ctx| {
-            ctx
-                .with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
+            ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
                 .with_components(GwynethNode::default().components_builder())
                 .with_add_ons::<EthereumAddOns>()
                 .launch_with_fn(|builder| {
@@ -128,18 +132,14 @@ pub async fn create_gwyneth_nodes(arg: GwynethArgs) -> Vec<GwynethFullNode>{
                     );
                     builder.launch_with(launcher)
                 })
-            })
-            .await
-            .iter()
-            .map(|handle| GwynethFullNode::Provider2(handle.node.clone()))
-            .collect::<Vec<_>>()
+        })
+        .await
+        .iter()
+        .map(|handle| GwynethFullNode::Provider2(handle.node.clone()))
+        .collect::<Vec<_>>()
     } else {
         // BlockchainProvider
-        arg.configure(|ctx| {
-                ctx
-                    .node(GwynethNode::default())
-                    .launch()
-            })
+        arg.configure(|ctx| ctx.node(GwynethNode::default()).launch())
             .await
             .iter()
             .map(|handle| GwynethFullNode::Provider1(handle.node.clone()))
@@ -147,22 +147,20 @@ pub async fn create_gwyneth_nodes(arg: GwynethArgs) -> Vec<GwynethFullNode>{
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use reth_cli_commands::node::NodeCommand;
     use super::*;
+    use reth_cli_commands::node::NodeCommand;
 
     #[test]
     fn parse_common_node_command_l2_args() {
         let args = NodeCommand::<GwynethArgs>::parse_from([
-            "reth", 
-            "--l2.chain_ids", 
-            "160010", 
-            "160011", 
-            "--l2.datadirs", 
-            "path/one", 
+            "reth",
+            "--l2.chain_ids",
+            "160010",
+            "160011",
+            "--l2.datadirs",
+            "path/one",
             "path/two",
             "--l2.ports",
             "1234",
@@ -175,22 +173,21 @@ mod tests {
             "true",
         ]);
         assert_eq!(
-            args.ext, 
+            args.ext,
             GwynethArgs {
-                chain_ids: vec![160010, 160011], 
+                chain_ids: vec![160010, 160011],
                 datadirs: vec!["path/one".into(), "path/two".into()],
                 ports: vec![1234, 2345],
                 // ipc_path: "/tmp/ipc".into(),
                 rbuilder_config: "path/to/rbuilder.toml".into(),
                 experimental: true,
-            })
+            }
+        )
     }
 
     #[test]
     #[should_panic]
     fn parse_l2_args() {
-        let args = NodeCommand::<GwynethArgs>::try_parse_from([
-            "reth", 
-        ]).unwrap();
+        let args = NodeCommand::<GwynethArgs>::try_parse_from(["reth"]).unwrap();
     }
 }

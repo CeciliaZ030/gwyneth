@@ -14,7 +14,9 @@ use reth_ethereum_engine_primitives::EthPayloadAttributes;
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent};
-use reth_node_api::{FullNodeComponents, FullNodeTypes, FullNodeTypesAdapter, NodeAddOns, PayloadBuilderAttributes};
+use reth_node_api::{
+    FullNodeComponents, FullNodeTypes, FullNodeTypesAdapter, NodeAddOns, PayloadBuilderAttributes,
+};
 use reth_node_builder::{components::Components, FullNode, NodeAdapter, NodeComponents};
 use reth_node_ethereum::{node::EthereumAddOns, EthExecutorProvider};
 use reth_payload_builder::{EthBuiltPayload, PayloadBuilderHandle};
@@ -22,7 +24,8 @@ use reth_primitives::{
     address, Address, SealedBlock, SealedBlockWithSenders, TransactionSigned, B256, U256,
 };
 use reth_provider::{
-    providers::{BlockchainProvider, BlockchainProvider2}, CanonStateSubscriptions, DatabaseProviderFactory,
+    providers::{BlockchainProvider, BlockchainProvider2},
+    CanonStateSubscriptions, DatabaseProviderFactory,
 };
 use reth_rpc_types::engine::PayloadStatusEnum;
 use reth_transaction_pool::{
@@ -37,11 +40,7 @@ const INITIAL_TIMESTAMP: u64 = 1710338135;
 
 type GwynethFullNode1 = FullNode<
     NodeAdapter<
-        FullNodeTypesAdapter<
-            GwynethNode,
-            Arc<DatabaseEnv>,
-            BlockchainProvider<Arc<DatabaseEnv>>,
-        >,
+        FullNodeTypesAdapter<GwynethNode, Arc<DatabaseEnv>, BlockchainProvider<Arc<DatabaseEnv>>>,
         Components<
             FullNodeTypesAdapter<
                 GwynethNode,
@@ -68,11 +67,7 @@ type GwynethFullNode1 = FullNode<
 
 type GwynethFullNode2 = FullNode<
     NodeAdapter<
-        FullNodeTypesAdapter<
-            GwynethNode,
-            Arc<DatabaseEnv>,
-            BlockchainProvider2<Arc<DatabaseEnv>>,
-        >,
+        FullNodeTypesAdapter<GwynethNode, Arc<DatabaseEnv>, BlockchainProvider2<Arc<DatabaseEnv>>>,
         Components<
             FullNodeTypesAdapter<
                 GwynethNode,
@@ -98,7 +93,6 @@ type GwynethFullNode2 = FullNode<
 >;
 
 sol!(RollupContract, "TaikoL1.json");
-
 
 pub enum GwynethFullNode {
     Provider1(GwynethFullNode1),
@@ -132,7 +126,6 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     };
                     engine_apis.push(engine_api);
                 }
-                
             }
         }
         Ok(Self { ctx, nodes, engine_apis })
@@ -288,9 +281,7 @@ fn decode_chain_into_rollup_events(
             receipt
                 .logs
                 .iter()
-                .filter(|log| {
-                    log.address == ROLLUP_CONTRACT_ADDRESS
-                })
+                .filter(|log| log.address == ROLLUP_CONTRACT_ADDRESS)
                 .map(move |log| (block, tx, log))
         })
         // Decode and filter rollup events

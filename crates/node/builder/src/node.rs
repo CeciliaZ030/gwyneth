@@ -108,14 +108,13 @@ pub struct FullNode<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> {
     pub data_dir: ChainPath<DataDirPath>,
 }
 
-
-// impl<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> FullNodeTypes for FullNode<Node, AddOns>{
-//     type DB = Node::DB;
+// impl<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> FullNodeTypes for FullNode<Node,
+// AddOns>{     type DB = Node::DB;
 //     type Provider = Node::Provider;
 // }
 
-// impl<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> FullNodeComponents for FullNode<Node, AddOns> {
-//     type Pool = Node::Pool;
+// impl<Node: FullNodeComponents, AddOns: NodeAddOns<Node>> FullNodeComponents for FullNode<Node,
+// AddOns> {     type Pool = Node::Pool;
 
 //     type Evm = Node::Evm;
 

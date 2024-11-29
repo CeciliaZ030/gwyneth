@@ -5,7 +5,12 @@
 pub mod add_ons;
 mod states;
 
-use reth_db::{init_db, mdbx::{DatabaseArguments, MaxReadTransactionDuration}, models::ClientVersion, DatabaseEnv};
+use reth_db::{
+    init_db,
+    mdbx::{DatabaseArguments, MaxReadTransactionDuration},
+    models::ClientVersion,
+    DatabaseEnv,
+};
 use reth_rpc_types::WithOtherFields;
 pub use states::*;
 
@@ -24,10 +29,17 @@ use reth_network::{
 };
 use reth_node_api::{FullNodeTypes, FullNodeTypesAdapter, NodeAddOns, NodeTypes};
 use reth_node_core::{
-    cli::config::{PayloadBuilderConfig, RethTransactionPoolConfig}, dirs::{ChainPath, DataDirPath}, node_config::NodeConfig, primitives::Head, rpc::eth::{helpers::AddDevSigners, FullEthApiServer}
+    cli::config::{PayloadBuilderConfig, RethTransactionPoolConfig},
+    dirs::{ChainPath, DataDirPath},
+    node_config::NodeConfig,
+    primitives::Head,
+    rpc::eth::{helpers::AddDevSigners, FullEthApiServer},
 };
 use reth_primitives::revm_primitives::EnvKzgSettings;
-use reth_provider::{providers::{BlockchainProvider, BlockchainProvider2}, ChainSpecProvider, FullProvider};
+use reth_provider::{
+    providers::{BlockchainProvider, BlockchainProvider2},
+    ChainSpecProvider, FullProvider,
+};
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::{PoolConfig, TransactionPool};
 use secp256k1::SecretKey;
@@ -179,8 +191,7 @@ impl<DB> NodeBuilder<DB> {
         mut self,
         task_executor: TaskExecutor,
         datadir: PathBuf,
-    ) -> WithLaunchContext<NodeBuilder<Arc<reth_db::DatabaseEnv>>>
-    {
+    ) -> WithLaunchContext<NodeBuilder<Arc<reth_db::DatabaseEnv>>> {
         let path = reth_node_core::dirs::MaybePlatformPath::<DataDirPath>::from(datadir);
         self.config = self.config.with_datadir_args(reth_node_core::args::DatadirArgs {
             datadir: path.clone(),
@@ -192,19 +203,15 @@ impl<DB> NodeBuilder<DB> {
 
         println!("data_dir: {:?}", data_dir);
 
-
         let db = init_db(
-            data_dir, 
+            data_dir,
             DatabaseArguments::new(ClientVersion::default())
-            .with_max_read_transaction_duration(Some(MaxReadTransactionDuration::Unbounded))
-        ).unwrap();
+                .with_max_read_transaction_duration(Some(MaxReadTransactionDuration::Unbounded)),
+        )
+        .unwrap();
 
         WithLaunchContext { builder: self.with_database(Arc::new(db)), task_executor }
     }
-
-
-
-
 
     /// Creates an _ephemeral_ preconfigured node for testing purposes.
     //#[cfg(feature = "test-utils")]
@@ -344,7 +351,9 @@ where
     where
         N: Node<RethFullAdapter2<DB, N>, ChainSpec = ChainSpec>,
     {
-        self.with_types_and_provider().with_components(node.components_builder()).with_add_ons::<N::AddOns>()
+        self.with_types_and_provider()
+            .with_components(node.components_builder())
+            .with_add_ons::<N::AddOns>()
     }
 
     /// Launches a preconfigured [Node]
