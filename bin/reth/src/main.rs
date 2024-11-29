@@ -28,12 +28,8 @@ fn main() -> eyre::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    
-
-    
     use clap::{Args, Parser};
     
-
     /// A helper type to parse Args more easily
     #[derive(Parser)]
     struct CommandParser<T: Args> {

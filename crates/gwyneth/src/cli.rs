@@ -119,7 +119,7 @@ impl GwynethArgs {
     }
 }
 
-pub async fn create_gwyneth_nodes(arg: GwynethArgs) -> Vec<GwynethFullNode> {
+pub async fn create_gwyneth_nodes(arg: &GwynethArgs) -> Vec<GwynethFullNode> {
     if arg.experimental {
         arg.configure(|ctx| {
             ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
