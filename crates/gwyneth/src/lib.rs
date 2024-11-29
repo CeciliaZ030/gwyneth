@@ -1,7 +1,8 @@
 //! Ethereum Node types config.
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
 use builder::default_gwyneth_payload_builder;
+use reth_consensus::Consensus;
 use reth_evm_ethereum::EthEvmConfig;
 use reth_primitives::ChainId;
 use reth_tasks::TaskManager;
@@ -40,15 +41,18 @@ use reth_node_ethereum::node::{
 use reth_payload_builder::{
     error::PayloadBuilderError, PayloadBuilderHandle, PayloadBuilderService, PayloadId,
 };
-use reth_provider::{CanonStateSubscriptions, StateProviderBox, StateProviderFactory};
+use reth_provider::{
+    providers::BlockchainProvider, CanonStateSubscriptions, StateProviderBox, StateProviderFactory,
+};
 use reth_rpc_types::{ExecutionPayloadV1, Withdrawal};
 use reth_tracing::{RethTracer, Tracer};
-use reth_transaction_pool::TransactionPool;
+use reth_transaction_pool::{blobstore, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionPool, TransactionValidationTaskExecutor};
 use serde::{Deserialize, Serialize};
 
 pub mod builder;
 pub mod engine_api;
 pub mod exex;
+pub mod cli;
 
 /// Gwyneth error type used in payload attributes validation
 #[derive(Debug, Error)]
@@ -335,8 +339,8 @@ where
     }
 }
 
-#[tokio::main]
-async fn main() -> eyre::Result<()> {
+#[tokio::test]
+async fn test() -> eyre::Result<()> {
     let _guard = RethTracer::new().init()?;
 
     let tasks = TaskManager::current();
@@ -352,13 +356,13 @@ async fn main() -> eyre::Result<()> {
 
     // create node config
     let node_config =
-        NodeConfig::test().with_rpc(RpcServerArgs::default().with_http()).with_chain(spec);
+        NodeConfig::default().with_rpc(RpcServerArgs::default().with_http()).with_chain(spec);
 
     let handle = NodeBuilder::new(node_config)
-        .testing_node(tasks.executor())
-        .launch_node(GwynethNode::default())
-        .await
-        .unwrap();
+        .with_gwyneth_launch_context(tasks.executor(), PathBuf::from("/tmp/gwyneth"))
+        .node(GwynethNode::default())
+        .launch()
+        .await?;
 
     handle.node_exit_future.await
 }

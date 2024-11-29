@@ -9,13 +9,13 @@ use reth_payload_builder::PayloadId;
 use reth_primitives::B256;
 use reth_provider::CanonStateNotificationStream;
 use reth_rpc_api::EngineApiClient;
+use reth_rpc_builder::constants;
 use reth_rpc_layer::AuthClientService;
 use reth_rpc_types::{
     engine::{ForkchoiceState, PayloadStatusEnum},
     ExecutionPayloadV3,
 };
 use std::{marker::PhantomData, net::Ipv4Addr};
-use reth_rpc_builder::constants;
 
 use crate::exex::BASE_CHAIN_ID;
 
@@ -116,7 +116,8 @@ impl PayloadEnvelopeExt for ExecutionPayloadEnvelopeV3 {
 }
 pub trait RpcServerArgsExEx {
     fn with_static_l2_rpc_ip_and_port(self, chain_id: u64) -> Self;
-    fn with_ports_and_ipc(self, port: Option<&u16>,  ipc: String, chain_id: u64) -> Self;
+    fn with_ports_and_ipc(self, port: Option<&u16>, ipc: String, chain_id: u64) -> Self;
+    fn with_ports(self, port: Option<&u16>, chain_id: u64) -> Self;
 }
 
 impl RpcServerArgsExEx for RpcServerArgs {
@@ -148,6 +149,20 @@ impl RpcServerArgsExEx for RpcServerArgs {
         }
         self.ipcpath = format!("{}/l2.ipc-{}", ipc.clone(), chain_id);
         println!("IPC path: {}", self.ipcpath);
+        self
+    }
+
+    fn with_ports(mut self, port: Option<&u16>, chain_id: u64) -> Self {
+        self.http = true;
+        self.http_addr = Ipv4Addr::new(0, 0, 0, 0).into();
+        if let Some(port) = port {
+            self.http_port = *port;
+            self.ws_port = port + 100;
+        } else {
+            let port_offset = (chain_id - BASE_CHAIN_ID) as u16;
+            self.http_port = 10110 + (port_offset * 100);
+            self.ws_port = 10111 + (port_offset * 100);
+        }
         self
     }
 }

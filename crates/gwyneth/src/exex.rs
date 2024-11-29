@@ -2,6 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use alloy_rlp::Decodable;
 use alloy_sol_types::{sol, SolEventInterface};
+use reth_rpc_builder::auth::AuthServerHandle;
 
 use crate::{
     engine_api::EngineApiContext, GwynethEngineTypes, GwynethNode, GwynethPayloadAttributes,
@@ -13,15 +14,15 @@ use reth_ethereum_engine_primitives::EthPayloadAttributes;
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent};
-use reth_node_api::{FullNodeTypesAdapter, PayloadBuilderAttributes};
-use reth_node_builder::{components::Components, FullNode, NodeAdapter};
+use reth_node_api::{FullNodeComponents, FullNodeTypes, FullNodeTypesAdapter, NodeAddOns, PayloadBuilderAttributes};
+use reth_node_builder::{components::Components, FullNode, NodeAdapter, NodeComponents};
 use reth_node_ethereum::{node::EthereumAddOns, EthExecutorProvider};
-use reth_payload_builder::EthBuiltPayload;
+use reth_payload_builder::{EthBuiltPayload, PayloadBuilderHandle};
 use reth_primitives::{
     address, Address, SealedBlock, SealedBlockWithSenders, TransactionSigned, B256, U256,
 };
 use reth_provider::{
-    providers::BlockchainProvider, CanonStateSubscriptions, DatabaseProviderFactory,
+    providers::{BlockchainProvider, BlockchainProvider2}, CanonStateSubscriptions, DatabaseProviderFactory,
 };
 use reth_rpc_types::engine::PayloadStatusEnum;
 use reth_transaction_pool::{
@@ -34,23 +35,54 @@ const ROLLUP_CONTRACT_ADDRESS: Address = address!("9fCF7D13d10dEdF17d0f24C62f0cf
 pub const BASE_CHAIN_ID: u64 = 167010;
 const INITIAL_TIMESTAMP: u64 = 1710338135;
 
-pub type GwynethFullNode = FullNode<
+type GwynethFullNode1 = FullNode<
     NodeAdapter<
         FullNodeTypesAdapter<
             GwynethNode,
-            Arc<TempDatabase<DatabaseEnv>>,
-            BlockchainProvider<Arc<TempDatabase<DatabaseEnv>>>,
+            Arc<DatabaseEnv>,
+            BlockchainProvider<Arc<DatabaseEnv>>,
         >,
         Components<
             FullNodeTypesAdapter<
                 GwynethNode,
-                Arc<TempDatabase<DatabaseEnv>>,
-                BlockchainProvider<Arc<TempDatabase<DatabaseEnv>>>,
+                Arc<DatabaseEnv>,
+                BlockchainProvider<Arc<DatabaseEnv>>,
             >,
             Pool<
                 TransactionValidationTaskExecutor<
                     EthTransactionValidator<
-                        BlockchainProvider<Arc<TempDatabase<DatabaseEnv>>>,
+                        BlockchainProvider<Arc<DatabaseEnv>>,
+                        EthPooledTransaction,
+                    >,
+                >,
+                CoinbaseTipOrdering<EthPooledTransaction>,
+                DiskFileBlobStore,
+            >,
+            EthEvmConfig,
+            EthExecutorProvider,
+            Arc<dyn Consensus>,
+        >,
+    >,
+    EthereumAddOns,
+>;
+
+type GwynethFullNode2 = FullNode<
+    NodeAdapter<
+        FullNodeTypesAdapter<
+            GwynethNode,
+            Arc<DatabaseEnv>,
+            BlockchainProvider2<Arc<DatabaseEnv>>,
+        >,
+        Components<
+            FullNodeTypesAdapter<
+                GwynethNode,
+                Arc<DatabaseEnv>,
+                BlockchainProvider2<Arc<DatabaseEnv>>,
+            >,
+            Pool<
+                TransactionValidationTaskExecutor<
+                    EthTransactionValidator<
+                        BlockchainProvider2<Arc<DatabaseEnv>>,
                         EthPooledTransaction,
                     >,
                 >,
@@ -67,6 +99,12 @@ pub type GwynethFullNode = FullNode<
 
 sol!(RollupContract, "TaikoL1.json");
 
+
+pub enum GwynethFullNode {
+    Provider1(GwynethFullNode1),
+    Provider2(GwynethFullNode2),
+}
+
 pub struct Rollup<Node: reth_node_api::FullNodeComponents> {
     ctx: ExExContext<Node>,
     nodes: Vec<GwynethFullNode>,
@@ -77,14 +115,27 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
     pub async fn new(ctx: ExExContext<Node>, nodes: Vec<GwynethFullNode>) -> eyre::Result<Self> {
         let mut engine_apis = Vec::new();
         for node in &nodes {
-            let engine_api = EngineApiContext {
-                engine_api_client: node.auth_server_handle().http_client(),
-                canonical_stream: node.provider.canonical_state_stream(),
-                _marker: PhantomData::<GwynethEngineTypes>,
-            };
-            engine_apis.push(engine_api);
+            match node {
+                GwynethFullNode::Provider1(node) => {
+                    let engine_api = EngineApiContext {
+                        engine_api_client: node.auth_server_handle().http_client(),
+                        canonical_stream: node.provider.canonical_state_stream(),
+                        _marker: PhantomData::<GwynethEngineTypes>,
+                    };
+                    engine_apis.push(engine_api);
+                }
+                GwynethFullNode::Provider2(node) => {
+                    let engine_api = EngineApiContext {
+                        engine_api_client: node.auth_server_handle().http_client(),
+                        canonical_stream: node.provider.canonical_state_stream(),
+                        _marker: PhantomData::<GwynethEngineTypes>,
+                    };
+                    engine_apis.push(engine_api);
+                }
+                
+            }
         }
-        Ok(Self { ctx, nodes, /* payload_event_stream, */ engine_apis })
+        Ok(Self { ctx, nodes, engine_apis })
     }
 
     pub async fn start(mut self) -> eyre::Result<()> {
@@ -160,13 +211,17 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     builder_attrs.inner.parent_beacon_block_root.unwrap();
 
                 // trigger new payload building draining the pool
-                self.nodes[node_idx].payload_builder.new_payload(builder_attrs).await.unwrap();
+                let payload_builder = match &self.nodes[node_idx] {
+                    GwynethFullNode::Provider1(node) => &node.payload_builder,
+                    GwynethFullNode::Provider2(node) => &node.payload_builder,
+                };
+                payload_builder.new_payload(builder_attrs).await.unwrap();
 
                 // wait for the payload builder to have finished building
                 let mut payload =
                     EthBuiltPayload::new(payload_id, SealedBlock::default(), U256::ZERO);
                 loop {
-                    let result = self.nodes[node_idx].payload_builder.best_payload(payload_id).await;
+                    let result = payload_builder.best_payload(payload_id).await;
 
                     if let Some(result) = result {
                         if let Ok(new_payload) = result {

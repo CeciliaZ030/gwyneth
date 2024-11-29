@@ -259,7 +259,7 @@ mod tests {
     use super::*;
     use crate::args::ColorMode;
     use clap::CommandFactory;
-    use node::L2Args;
+    use gwyneth::cli::GwynethArgs;
 
     #[test]
     fn parse_color_mode() {
@@ -328,7 +328,7 @@ mod tests {
 
     #[test]
     fn parse_l2_chains() {
-        let reth = Cli::<L2Args>::try_parse_args_from_l2([
+        let reth = Cli::<GwynethArgs>::try_parse_args_from_l2([
             "reth", 
             "node",
             "--l2.chain_ids", 
@@ -336,7 +336,9 @@ mod tests {
             "160011", 
             "--l2.datadirs", 
             "path/one", 
-            "path/two"
+            "path/two",
+            "--rbuilder.config",
+            "path/to/config",
         ])
         .unwrap();
         assert!(reth.run(|_, _| async move { Ok(()) }).is_ok());

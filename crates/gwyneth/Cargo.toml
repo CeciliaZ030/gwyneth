@@ -48,6 +48,7 @@ reth-rpc-layer.workspace = true
 reth-db.workspace = true
 reth-trie.workspace = true
 reth-rpc-builder.workspace = true
+reth-cli-commands.workspace = true
 
 # ethereum
 reth-node-ethereum.workspace = true
@@ -66,6 +67,7 @@ thiserror.workspace = true
 tracing.workspace = true
 jsonrpsee.workspace = true
 revm.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
 
 # alloy
 alloy-sol-types = { workspace = true, features = ["json"] }

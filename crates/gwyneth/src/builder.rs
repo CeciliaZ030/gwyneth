@@ -368,13 +368,3 @@ where
     Ok(BuildOutcome::Better { payload, cached_reads: sync_cached_reads.into() })
 }
 
-pub fn build_execution_outcome<DB: SyncDatabase>(
-    sync_db: &mut State<DB>,
-    receipts: Receipts,
-    first_block: BlockNumber,
-    requests: Vec<Requests>,
-) -> HashMap<ChainId, ExecutionOutcome> {
-    let bundle_states = sync_db.take_bundle();
-
-    todo!()
-}

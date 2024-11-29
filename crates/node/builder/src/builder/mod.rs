@@ -5,7 +5,7 @@
 pub mod add_ons;
 mod states;
 
-use reth_db::init_db;
+use reth_db::{init_db, mdbx::{DatabaseArguments, MaxReadTransactionDuration}, models::ClientVersion, DatabaseEnv};
 use reth_rpc_types::WithOtherFields;
 pub use states::*;
 
@@ -27,7 +27,7 @@ use reth_node_core::{
     cli::config::{PayloadBuilderConfig, RethTransactionPoolConfig}, dirs::{ChainPath, DataDirPath}, node_config::NodeConfig, primitives::Head, rpc::eth::{helpers::AddDevSigners, FullEthApiServer}
 };
 use reth_primitives::revm_primitives::EnvKzgSettings;
-use reth_provider::{providers::BlockchainProvider, ChainSpecProvider, FullProvider};
+use reth_provider::{providers::{BlockchainProvider, BlockchainProvider2}, ChainSpecProvider, FullProvider};
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::{PoolConfig, TransactionPool};
 use secp256k1::SecretKey;
@@ -44,6 +44,7 @@ use crate::{
 /// The adapter type for a reth node with the builtin provider type
 // Note: we need to hardcode this because custom components might depend on it in associated types.
 pub type RethFullAdapter<DB, Types> = FullNodeTypesAdapter<Types, DB, BlockchainProvider<DB>>;
+pub type RethFullAdapter2<DB, Types> = FullNodeTypesAdapter<Types, DB, BlockchainProvider2<DB>>;
 
 #[cfg_attr(doc, aquamarine::aquamarine)]
 /// Declaratively construct a node.
@@ -174,11 +175,11 @@ impl<DB> NodeBuilder<DB> {
     }
 
     /// Creates a Gwyneth node
-    pub fn gwyneth_node(
+    pub fn with_gwyneth_launch_context(
         mut self,
         task_executor: TaskExecutor,
         datadir: PathBuf,
-    ) -> WithLaunchContext<NodeBuilder<Arc<reth_db::test_utils::TempDatabase<reth_db::DatabaseEnv>>>>
+    ) -> WithLaunchContext<NodeBuilder<Arc<reth_db::DatabaseEnv>>>
     {
         let path = reth_node_core::dirs::MaybePlatformPath::<DataDirPath>::from(datadir);
         self.config = self.config.with_datadir_args(reth_node_core::args::DatadirArgs {
@@ -191,9 +192,14 @@ impl<DB> NodeBuilder<DB> {
 
         println!("data_dir: {:?}", data_dir);
 
-        let db = reth_db::test_utils::create_test_rw_db_with_path(data_dir.db());
 
-        WithLaunchContext { builder: self.with_database(db), task_executor }
+        let db = init_db(
+            data_dir, 
+            DatabaseArguments::new(ClientVersion::default())
+            .with_max_read_transaction_duration(Some(MaxReadTransactionDuration::Unbounded))
+        ).unwrap();
+
+        WithLaunchContext { builder: self.with_database(Arc::new(db)), task_executor }
     }
 
 
@@ -266,14 +272,19 @@ where
 /// This exposes the same methods as [`NodeBuilder`] but with the launch context already configured,
 /// See [`WithLaunchContext::launch`]
 pub struct WithLaunchContext<Builder> {
-    builder: Builder,
-    task_executor: TaskExecutor,
+    pub builder: Builder,
+    pub task_executor: TaskExecutor,
 }
 
 impl<Builder> WithLaunchContext<Builder> {
     /// Returns a reference to the task executor.
     pub const fn task_executor(&self) -> &TaskExecutor {
         &self.task_executor
+    }
+
+    /// Returns a reference to the task executor.
+    pub const fn builder(&self) -> &Builder {
+        &self.builder
     }
 }
 
@@ -321,6 +332,19 @@ where
         N: Node<RethFullAdapter<DB, N>, ChainSpec = ChainSpec>,
     {
         self.with_types().with_components(node.components_builder()).with_add_ons::<N::AddOns>()
+    }
+
+    ////
+    pub fn node2<N>(
+        self,
+        node: N,
+    ) -> WithLaunchContext<
+        NodeBuilderWithComponents<RethFullAdapter2<DB, N>, N::ComponentsBuilder, N::AddOns>,
+    >
+    where
+        N: Node<RethFullAdapter2<DB, N>, ChainSpec = ChainSpec>,
+    {
+        self.with_types_and_provider().with_components(node.components_builder()).with_add_ons::<N::AddOns>()
     }
 
     /// Launches a preconfigured [Node]

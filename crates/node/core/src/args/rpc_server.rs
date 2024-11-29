@@ -269,6 +269,21 @@ impl RpcServerArgs {
         self = self.with_ipc_random_path();
         self
     }
+
+    pub fn set_http_port(mut self, port: u16) -> Self {
+        self.http_port = port;
+        self
+    }
+
+    pub fn set_ws_port(mut self, port: u16) -> Self {
+        self.ws_port = port;
+        self
+    }
+
+    pub fn set_ipc_path(mut self, path: String) -> Self {
+        self.ipcpath = path;
+        self
+    }
 }
 
 impl Default for RpcServerArgs {
