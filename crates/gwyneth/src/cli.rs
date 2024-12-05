@@ -28,9 +28,15 @@ pub struct GwynethArgs {
     #[arg(long = "l2.chain_ids", required = true, num_args = 1..,)]
     pub chain_ids: Vec<u64>,
 
+    /// Path to the IPC socket shared btw reth and rbuilder
+    #[arg(long = "l2.ipcs", required = true, num_args = 1..,)]
+    pub ipc_paths: Vec<PathBuf>,
+
+    /// DB path initialized by reth, passed to rbuilder
     #[arg(long = "l2.datadirs", required = true, num_args = 1..,)]
     pub datadirs: Vec<PathBuf>,
 
+    /// RPC ports for reth nodes
     #[arg(long = "l2.ports", num_args = 1..,)]
     pub ports: Vec<u16>,
 
@@ -61,9 +67,10 @@ impl GwynethArgs {
 
         self.chain_ids
             .iter()
+            .zip(self.ipc_paths.iter())
             .zip(self.datadirs.iter())
             .zip(self.ports.iter())
-            .map(|((chain_id, _), port)| {
+            .map(|(((chain_id, ipc), _), port)| {
                 let chain_spec =
                     chain_spec_builder.clone().chain(Chain::from_id(chain_id.clone())).build();
 
@@ -72,7 +79,8 @@ impl GwynethArgs {
                     .with_network(network_config.clone())
                     .with_rpc(
                         RpcServerArgs::default()
-                            .with_unused_ports() // random ws & auth port & ipc path
+                            .with_unused_ports()
+                            .set_ipc_path(String::from(ipc.to_str().unwrap()))
                             .set_http_port(port.clone()),
                     )
             })
@@ -165,12 +173,11 @@ mod tests {
             "--l2.ports",
             "1234",
             "2345",
-            // "--l2.ipc_path",
-            // "/tmp/ipc",
+            "--l2.ipcs",
+            "/tmp/ipc",
             "--rbuilder.config",
             "path/to/rbuilder.toml",
             "--engine.experimental",
-            "true",
         ]);
         assert_eq!(
             args.ext,
@@ -178,7 +185,7 @@ mod tests {
                 chain_ids: vec![160010, 160011],
                 datadirs: vec!["path/one".into(), "path/two".into()],
                 ports: vec![1234, 2345],
-                // ipc_path: "/tmp/ipc".into(),
+                ipc_paths: vec!["/tmp/ipc".into()],
                 rbuilder_config: "path/to/rbuilder.toml".into(),
                 experimental: true,
             }

@@ -12,7 +12,7 @@ fn main() -> eyre::Result<()> {
     println!("WTF");
     reth::cli::Cli::<GwynethArgs>::parse_args_l2().run(|builder, arg| async move {
         println!("Starting reth node with custom exex \n {:?}", arg);
-        let gwyneth_nodes = create_gwyneth_nodes(arg).await;
+        let gwyneth_nodes = create_gwyneth_nodes(&arg).await;
         let handle = builder
             .node(EthereumNode::default())
             .install_exex("Rollup", move |ctx| async {

@@ -341,21 +341,6 @@ where
         self.with_types().with_components(node.components_builder()).with_add_ons::<N::AddOns>()
     }
 
-    ////
-    pub fn node2<N>(
-        self,
-        node: N,
-    ) -> WithLaunchContext<
-        NodeBuilderWithComponents<RethFullAdapter2<DB, N>, N::ComponentsBuilder, N::AddOns>,
-    >
-    where
-        N: Node<RethFullAdapter2<DB, N>, ChainSpec = ChainSpec>,
-    {
-        self.with_types_and_provider()
-            .with_components(node.components_builder())
-            .with_add_ons::<N::AddOns>()
-    }
-
     /// Launches a preconfigured [Node]
     ///
     /// This bootstraps the node internals, creates all the components with the given [Node]
