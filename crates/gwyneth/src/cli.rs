@@ -42,7 +42,7 @@ pub struct GwynethArgs {
 
     /// Path of the rbuilder config to use
     #[arg(long = "rbuilder.config")]
-    pub rbuilder_config: PathBuf,
+    pub rbuilder_config: Option<PathBuf>,
 
     /// Enable the engine2 experimental features on reth binary
     #[arg(long = "engine.experimental", default_value = "false")]
@@ -119,6 +119,7 @@ impl GwynethArgs {
             let builder = NodeBuilder::new(node_config.clone()).with_database(Arc::new(db));
             let ctx =
                 WithLaunchContext { builder, task_executor: TaskManager::current().executor() };
+            println!("Gwyneth node {:?} launch with config: {:?}", node_config.chain.chain.id(), node_config);
             let node = f(ctx).await.unwrap();
             gwyneth_nodes.push(node);
         }
@@ -186,7 +187,7 @@ mod tests {
                 datadirs: vec!["path/one".into(), "path/two".into()],
                 ports: vec![1234, 2345],
                 ipc_paths: vec!["/tmp/ipc".into()],
-                rbuilder_config: "path/to/rbuilder.toml".into(),
+                rbuilder_config: Some("path/to/rbuilder.toml".into()),
                 experimental: true,
             }
         )
