@@ -1,24 +1,20 @@
+use std::marker::PhantomData;
+
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{transport::HttpBackend, HttpClient},
 };
 use reth_ethereum_engine_primitives::ExecutionPayloadEnvelopeV3;
 use reth_node_api::EngineTypes;
-use reth_node_core::args::RpcServerArgs;
 use reth_payload_builder::PayloadId;
 use reth_primitives::B256;
 use reth_provider::CanonStateNotificationStream;
 use reth_rpc_api::EngineApiClient;
-use reth_rpc_builder::constants;
 use reth_rpc_layer::AuthClientService;
 use reth_rpc_types::{
     engine::{ForkchoiceState, PayloadStatusEnum},
     ExecutionPayloadV3,
 };
-use std::{marker::PhantomData, net::Ipv4Addr};
-
-use crate::exex::BASE_CHAIN_ID;
-
 /// Helper for engine api operations
 pub struct EngineApiContext<E> {
     pub canonical_stream: CanonStateNotificationStream,
@@ -112,57 +108,5 @@ pub trait PayloadEnvelopeExt: Send + Sync + std::fmt::Debug {
 impl PayloadEnvelopeExt for ExecutionPayloadEnvelopeV3 {
     fn execution_payload(&self) -> ExecutionPayloadV3 {
         self.execution_payload.clone()
-    }
-}
-pub trait RpcServerArgsExEx {
-    fn with_static_l2_rpc_ip_and_port(self, chain_id: u64) -> Self;
-    fn with_ports_and_ipc(self, port: Option<&u16>, ipc: String, chain_id: u64) -> Self;
-    fn with_ports(self, port: Option<&u16>, chain_id: u64) -> Self;
-}
-
-impl RpcServerArgsExEx for RpcServerArgs {
-    fn with_static_l2_rpc_ip_and_port(mut self, chain_id: u64) -> Self {
-        self.http = true;
-        self.http_addr = Ipv4Addr::new(0, 0, 0, 0).into();
-
-        // Calculate HTTP and WS ports based on chain_id
-        let port_offset = (chain_id - BASE_CHAIN_ID) as u16;
-        self.http_port = 10110 + (port_offset * 100);
-        self.ws_port = 10111 + (port_offset * 100);
-
-        // Set IPC path
-        self.ipcpath = format!("{}-{}", constants::DEFAULT_IPC_ENDPOINT, chain_id);
-
-        self
-    }
-
-    fn with_ports_and_ipc(mut self, port: Option<&u16>, ipc: String, chain_id: u64) -> Self {
-        self.http = true;
-        self.http_addr = Ipv4Addr::new(0, 0, 0, 0).into();
-        if let Some(port) = port {
-            self.http_port = *port;
-            self.ws_port = port + 100;
-        } else {
-            let port_offset = (chain_id - BASE_CHAIN_ID) as u16;
-            self.http_port = 10110 + (port_offset * 100);
-            self.ws_port = 10111 + (port_offset * 100);
-        }
-        self.ipcpath = format!("{}/l2.ipc-{}", ipc.clone(), chain_id);
-        println!("IPC path: {}", self.ipcpath);
-        self
-    }
-
-    fn with_ports(mut self, port: Option<&u16>, chain_id: u64) -> Self {
-        self.http = true;
-        self.http_addr = Ipv4Addr::new(0, 0, 0, 0).into();
-        if let Some(port) = port {
-            self.http_port = *port;
-            self.ws_port = port + 100;
-        } else {
-            let port_offset = (chain_id - BASE_CHAIN_ID) as u16;
-            self.http_port = 10110 + (port_offset * 100);
-            self.ws_port = 10111 + (port_offset * 100);
-        }
-        self
     }
 }
