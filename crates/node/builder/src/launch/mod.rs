@@ -124,6 +124,7 @@ where
         self,
         target: NodeBuilderWithComponents<T, CB, AO>,
     ) -> eyre::Result<Self::Node> {
+        println!("DefaultNodeLauncher::launch_node");
         let Self { ctx } = self;
         let NodeBuilderWithComponents {
             adapter: NodeTypesAdapter { database },

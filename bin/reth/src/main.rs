@@ -11,7 +11,6 @@ use reth_node_ethereum::EthereumNode;
 fn main() -> eyre::Result<()> {
     println!("WTF");
     reth::cli::Cli::<GwynethArgs>::parse_args_l2().run(|builder, arg| async move {
-        println!("Starting reth node with custom exex \n {:?}", arg);
         let gwyneth_nodes = create_gwyneth_nodes(&arg, builder.config()).await;
         let handle = builder
             .node(EthereumNode::default())

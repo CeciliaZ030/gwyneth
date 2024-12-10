@@ -195,6 +195,7 @@ impl NetworkManager {
         let peers_manager = PeersManager::new(peers_config);
         let peers_handle = peers_manager.handle();
 
+        println!("===> NetworkManager::new listener_addr={:?}", listener_addr);
         let incoming = ConnectionListener::bind(listener_addr).await.map_err(|err| {
             NetworkError::from_io_error(err, ServiceKind::Listener(listener_addr))
         })?;
@@ -255,6 +256,7 @@ impl NetworkManager {
 
         let event_sender: EventSender<NetworkEvent> = Default::default();
 
+        println!("===> NetworkHandle::new {:?}", chain_spec.chain.id());
         let handle = NetworkHandle::new(
             Arc::clone(&num_active_peers),
             Arc::new(Mutex::new(listener_addr)),

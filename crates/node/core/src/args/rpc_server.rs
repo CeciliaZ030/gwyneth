@@ -270,16 +270,25 @@ impl RpcServerArgs {
         self
     }
 
+    /// Set the http port to a specific value.
     pub fn set_http_port(mut self, port: u16) -> Self {
         self.http_port = port;
         self
     }
 
+    /// Set the ws port to a specific value.
     pub fn set_ws_port(mut self, port: u16) -> Self {
         self.ws_port = port;
         self
     }
 
+    /// Set the auth port to a specific value.
+    pub fn set_auth_port(mut self, port: u16) -> Self {
+        self.auth_port = port;
+        self
+    }
+
+    /// Set the IPC path to a specific value.
     pub fn set_ipc_path(mut self, path: String) -> Self {
         self.ipcpath = path;
         self
