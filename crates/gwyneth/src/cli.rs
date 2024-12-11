@@ -60,7 +60,6 @@ impl GwynethArgs {
     /// Build node configs for Gwyneth nodes
     pub fn build_node_configs(&self, l1_node_config: &NodeConfig) -> Vec<NodeConfig> {
         assert_eq!(self.chain_ids.len(), self.datadirs.len());
-
         let mut network_config = NetworkArgs {
             // No p2p btw gwyneth nodes for now, otherwise we have one p2p instance per chain
             // and need to configure ports in the containers
@@ -75,7 +74,7 @@ impl GwynethArgs {
 
         let chain_spec_builder = ChainSpecBuilder::default()
             .genesis(
-                serde_json::from_str(include_str!("../../ethereum/node/tests/assets/genesis.json"))
+                serde_json::from_str(include_str!("../genesis.json"))
                     .unwrap(),
             )
             .cancun_activated();
@@ -197,11 +196,6 @@ pub async fn create_gwyneth_nodes(
             .collect::<Vec<_>>()
     }
 }
-
-// ➜  debug git:(try-mono) ✗ RUST_BACKTRACE=1 ./reth node --l2.chain_ids 160010 160011
-// --l2.datadirs /tmp/data/reth/execution-data-160010 /tmp/data/reth/execution-data-160011 --l2.ipcs
-// /tmp/ipc-1 /tmp/ipc-2 RUST_BACKTRACE=full ./reth node --l2.chain_ids 160010  --l2.datadirs
-// /tmp/data/reth/execution-data-160010 --l2.ipcs /tmp/ipc-1
 
 #[cfg(test)]
 mod tests {
