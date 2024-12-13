@@ -37,7 +37,7 @@ use reth_node_core::{
 };
 use reth_primitives::revm_primitives::EnvKzgSettings;
 use reth_provider::{
-    providers::{BlockchainProvider, BlockchainProvider2},
+    providers::BlockchainProvider,
     ChainSpecProvider, FullProvider,
 };
 use reth_tasks::TaskExecutor;
@@ -56,7 +56,6 @@ use crate::{
 /// The adapter type for a reth node with the builtin provider type
 // Note: we need to hardcode this because custom components might depend on it in associated types.
 pub type RethFullAdapter<DB, Types> = FullNodeTypesAdapter<Types, DB, BlockchainProvider<DB>>;
-pub type RethFullAdapter2<DB, Types> = FullNodeTypesAdapter<Types, DB, BlockchainProvider2<DB>>;
 
 #[cfg_attr(doc, aquamarine::aquamarine)]
 /// Declaratively construct a node.

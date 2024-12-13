@@ -96,6 +96,7 @@ where
         Tasks: TaskSpawner + Clone + 'static,
         Events: CanonStateSubscriptions,
     {
+        println!("EthApi::with_spawner");
         let blocking_task_pool =
             BlockingTaskPool::build().expect("failed to build blocking task pool");
 

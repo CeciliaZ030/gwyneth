@@ -11,7 +11,12 @@ use reth_node_ethereum::EthereumNode;
 fn main() -> eyre::Result<()> {
     println!("WTF");
     reth::cli::Cli::<GwynethArgs>::parse_args_l2().run(|builder, arg| async move {
-        let gwyneth_nodes = create_gwyneth_nodes(&arg, builder.config()).await;
+        let gwyneth_nodes = create_gwyneth_nodes(
+            &arg, 
+            builder.task_executor().clone(),
+            builder.config()
+        ).await;
+        
         let handle = builder
             .node(EthereumNode::default())
             .install_exex("Rollup", move |ctx| async {

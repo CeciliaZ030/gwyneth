@@ -396,12 +396,6 @@ impl BlockDownloaderProvider for NetworkHandle {
     async fn fetch_client(&self) -> Result<impl BlockClient + 'static, oneshot::error::RecvError> {
         println!("FUCKKK NetworkHandle::fetch_client {:?}", self.inner);
         let (tx, rx) = oneshot::channel();
-        println!("=====> {:?}, {:?}", tx, rx);
-
-        // =====> Sender { inner: Some(Inner { state: State { is_complete: false, is_closed: false, is_rx_task_set: false, is_tx_task_set: false } }) }, 
-        // Receiver { inner: Some(Inner { state: State { is_complete: false, is_closed: false, is_rx_task_set: false, is_tx_task_set: false } }) }
-
-
         let _ = self.manager().send(NetworkHandleMessage::FetchClient(tx))
             .unwrap();
         rx.await

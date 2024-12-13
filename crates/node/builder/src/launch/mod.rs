@@ -437,6 +437,8 @@ where
             config: ctx.node_config().clone(),
             data_dir: ctx.data_dir().clone(),
         };
+        
+        println!("~~~~full_node");
         // Notify on node started
         on_node_started.on_event(full_node.clone())?;
 

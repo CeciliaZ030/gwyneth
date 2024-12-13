@@ -87,6 +87,7 @@ impl GwynethArgs {
                 let chain_spec =
                     chain_spec_builder.clone().chain(Chain::from_id(chain_id.clone())).build();
                 let mut rpc = RpcServerArgs::default().with_http();
+                rpc.http_api = Some(reth_rpc_builder::RpcModuleSelection::Standard);
                 rpc.adjust_instance_ports((idx + 2) as u16);
                 rpc.http_addr = l1_node_config.rpc.http_addr.clone();
                 rpc.auth_addr = l1_node_config.rpc.auth_addr.clone();
@@ -165,10 +166,9 @@ impl GwynethArgs {
 /// Create Gwyneth nodes with the given args and l1 node config
 pub async fn create_gwyneth_nodes(
     arg: &GwynethArgs,
+    exec: TaskExecutor,
     l1_node_config: &NodeConfig,
 ) -> Vec<GwynethFullNode> {
-    let tasks = TaskManager::current();
-    let exec: reth_tasks::TaskExecutor = tasks.executor();
     if arg.experimental {
         // BlockchainProvider2
         arg.configure(l1_node_config, exec, |ctx| {
