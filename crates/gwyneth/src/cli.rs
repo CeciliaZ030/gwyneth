@@ -44,7 +44,7 @@ pub struct GwynethArgs {
     pub auth_ports: Option<Vec<u16>>,
 
     /// Path to the IPC socket shared btw reth and rbuilder
-    #[arg(long = "l2.ipcs", required = true, num_args = 0..,)]
+    #[arg(long = "l2.ipcs", num_args = 0..,)]
     pub ipc_paths: Option<Vec<PathBuf>>,
 
     /// Path of the rbuilder config to use
@@ -244,5 +244,19 @@ mod tests {
     #[should_panic]
     fn parse_l2_args() {
         let _ = NodeCommand::<GwynethArgs>::try_parse_from(["reth"]).unwrap();
+    }
+
+    #[tokio::test]
+    fn test_creating_nodes() {
+        let args = GwynethArgs {
+            chain_ids: vec![160010, 160011],
+            datadirs: vec!["path/one".into(), "path/two".into()],
+            ..Default::default()
+        };
+        let l1_node_config = NodeConfig::default();
+        let exec = TaskManager::current().executor();
+
+        let gwyneth_nodes = create_gwyneth_nodes(&args, exec, &l1_node_config).await;
+        assert_eq!(gwyneth_nodes.len(), 2);
     }
 }

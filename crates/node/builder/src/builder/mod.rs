@@ -493,7 +493,6 @@ where
     where
         L: LaunchNode<NodeBuilderWithComponents<T, CB, AO>>,
     {
-        println!("WithLaunchContext::launch_with");
         launcher.launch_node(self.builder).await
     }
 
@@ -617,7 +616,6 @@ impl<Node: FullNodeTypes> BuilderContext<Node> {
     /// Creates the [`NetworkBuilder`] for the node.
     pub async fn network_builder(&self) -> eyre::Result<NetworkBuilder<(), ()>> {
         let network_config = self.network_config()?;
-        println!("===> NetworkManager::builder");
         let builder = NetworkManager::builder(network_config).await?;
         Ok(builder)
     }
@@ -640,7 +638,6 @@ impl<Node: FullNodeTypes> BuilderContext<Node> {
 
         let default_peers_path = self.config().datadir().known_peers();
         let known_peers_file = self.config().network.persistent_peers_file(default_peers_path);
-        println!("===> NetworkManager::run_until_graceful_shutdown  *drop(manager) & return handle");
         self.executor.spawn_critical_with_graceful_shutdown_signal(
             "p2p network task",
             |shutdown| {

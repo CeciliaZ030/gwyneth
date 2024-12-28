@@ -49,10 +49,10 @@ where
         cancun_fields: Option<CancunPayloadFields>,
     ) -> Result<PayloadStatus, BeaconOnNewPayloadError> {
         let (tx, rx) = oneshot::channel();
-        println!("new_payload start");
+        println!("[reth] new_payload start");
         let _ = self.to_engine.send(BeaconEngineMessage::NewPayload { payload, cancun_fields, tx });
         let res = rx.await.map_err(|_| BeaconOnNewPayloadError::EngineUnavailable)?;
-        println!("new_payload end");
+        println!("[reth] new_payload end");
         res
     }
 

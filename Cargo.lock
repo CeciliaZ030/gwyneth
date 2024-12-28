@@ -6257,7 +6257,9 @@ dependencies = [
 name = "reth"
 version = "1.0.6"
 dependencies = [
+ "alloy-network",
  "alloy-rlp",
+ "alloy-signer-local",
  "aquamarine",
  "backon",
  "clap",
@@ -6267,6 +6269,7 @@ dependencies = [
  "futures",
  "gwyneth",
  "itertools 0.13.0",
+ "jsonrpsee",
  "libc",
  "metrics-process",
  "reth-basic-payload-builder",

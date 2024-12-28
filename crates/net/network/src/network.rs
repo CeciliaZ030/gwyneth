@@ -65,7 +65,6 @@ impl NetworkHandle {
         discv4: Option<Discv4>,
         event_sender: EventSender<NetworkEvent>,
     ) -> Self {
-        println!("===> NetworkHandle::new {:?}", chain_id);
         let inner = NetworkInner {
             num_active_peers,
             to_manager_tx,
@@ -394,7 +393,6 @@ impl NetworkSyncUpdater for NetworkHandle {
 
 impl BlockDownloaderProvider for NetworkHandle {
     async fn fetch_client(&self) -> Result<impl BlockClient + 'static, oneshot::error::RecvError> {
-        println!("FUCKKK NetworkHandle::fetch_client {:?}", self.inner);
         let (tx, rx) = oneshot::channel();
         let _ = self.manager().send(NetworkHandleMessage::FetchClient(tx))
             .unwrap();

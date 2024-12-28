@@ -410,7 +410,7 @@ where
                             let parent = attr.parent();
                             match this.generator.new_payload_job(attr.clone()) {
                                 Ok(job) => {
-                                    info!(%id, %parent, "New payload job created");
+                                    info!(%id, %parent, "[reth] New payload job created");
                                     this.metrics.inc_initiated_jobs();
                                     new_job = true;
                                     this.payload_jobs.push((job, id));

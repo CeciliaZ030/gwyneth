@@ -99,6 +99,22 @@ pub enum GwynethFullNode {
     Provider2(GwynethFullNode2),
 }
 
+impl GwynethFullNode {
+    pub fn chain_id(&self) -> u64{
+        match self {
+            GwynethFullNode::Provider1(node) => (node.chain_spec().chain().id()),
+            GwynethFullNode::Provider2(node) => (node.chain_spec().chain().id()),
+        }
+    }
+
+    pub fn payload_builder(&self) -> &PayloadBuilderHandle<GwynethEngineTypes> {
+        match self {
+            GwynethFullNode::Provider1(node) => &node.payload_builder,
+            GwynethFullNode::Provider2(node) => &node.payload_builder,
+        }
+    }
+}
+
 pub struct Rollup<Node: reth_node_api::FullNodeComponents> {
     ctx: ExExContext<Node>,
     nodes: Vec<GwynethFullNode>,
@@ -149,6 +165,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
     }
 
     pub async fn commit(&mut self, chain: &Chain, node_idx: usize) -> eyre::Result<()> {
+        let node = &self.nodes[node_idx];
         let events = decode_chain_into_rollup_events(chain);
         for (block, _, event) in events {
             if let RollupContractEvents::BlockProposed(BlockProposed {
@@ -156,21 +173,18 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 meta,
             }) = event
             {
-                println!("block_number: {:?}", block_number);
-                println!("tx_list: {:?}", meta.txList);
+                println!("[reth] Exex Gwyneth: synced_l1_header: {:?}, synced_l1_number: {:?}", self.ctx.head.hash, self.ctx.head.number);
+                println!("[reth] l2 {} block_number: {:?}", node.chain_id(), block_number);
                 let transactions: Vec<TransactionSigned> = decode_transactions(&meta.txList);
-                println!("transactions: {:?}", transactions);
+                println!("tx_list: {:?}", transactions);
 
-                let all_transactions: Vec<TransactionSigned> = decode_transactions(&meta.txList);
-                let node_chain_id = BASE_CHAIN_ID + (node_idx as u64);
-
-                let filtered_transactions: Vec<TransactionSigned> = all_transactions
+                let filtered_transactions: Vec<TransactionSigned> = transactions
                     .into_iter()
-                    .filter(|tx| tx.chain_id() == Some(node_chain_id))
+                    .filter(|tx| tx.chain_id() == Some(node.chain_id()))
                     .collect();
 
                 if filtered_transactions.len() == 0 {
-                    println!("no transactions for chain: {}", node_chain_id);
+                    println!("no transactions for chain: {}", node.chain_id());
                     continue;
                 }
 
@@ -204,17 +218,13 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     builder_attrs.inner.parent_beacon_block_root.unwrap();
 
                 // trigger new payload building draining the pool
-                let payload_builder = match &self.nodes[node_idx] {
-                    GwynethFullNode::Provider1(node) => &node.payload_builder,
-                    GwynethFullNode::Provider2(node) => &node.payload_builder,
-                };
-                payload_builder.new_payload(builder_attrs).await.unwrap();
+                node.payload_builder().new_payload(builder_attrs).await.unwrap();
 
                 // wait for the payload builder to have finished building
                 let mut payload =
                     EthBuiltPayload::new(payload_id, SealedBlock::default(), U256::ZERO);
                 loop {
-                    let result = payload_builder.best_payload(payload_id).await;
+                    let result = node.payload_builder().best_payload(payload_id).await;
 
                     if let Some(result) = result {
                         if let Ok(new_payload) = result {

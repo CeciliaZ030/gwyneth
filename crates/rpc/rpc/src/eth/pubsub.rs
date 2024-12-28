@@ -1,6 +1,6 @@
 //! `eth_` `PubSub` RPC handler implementation
 
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use futures::StreamExt;
 use jsonrpsee::{
@@ -64,6 +64,23 @@ impl<Provider, Pool, Events, Network> EthPubSub<Provider, Pool, Events, Network>
     ) -> Self {
         let inner = EthPubSubInner { provider, pool, chain_events, network };
         Self { inner: Arc::new(inner), subscription_task_spawner }
+    }
+}
+
+impl<Provider, Pool, Events, Network> EthPubSub<Provider, Pool, Events, Network>
+where
+    Provider: BlockReader + EvmEnvProvider + Clone + 'static,
+    Pool: TransactionPool + 'static,
+    Events: CanonStateSubscriptions + Clone + 'static,
+    Network: NetworkInfo + Clone + 'static,
+{
+
+    pub fn new_headers_stream(&self) -> impl Stream<Item = Header> {
+        self.inner.new_headers_stream()
+    }
+
+    pub fn full_pending_transaction_stream(&self) -> impl Stream<Item = NewTransactionEvent<<Pool as TransactionPool>::Transaction>> {
+        self.inner.full_pending_transaction_stream()
     }
 }
 

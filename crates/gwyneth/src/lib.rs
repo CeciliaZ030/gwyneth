@@ -4,7 +4,7 @@ use std::{fmt::Debug, path::PathBuf, sync::Arc};
 use builder::default_gwyneth_payload_builder;
 use reth_consensus::Consensus;
 use reth_evm_ethereum::EthEvmConfig;
-use reth_primitives::ChainId;
+use reth_primitives::{BlockHash, ChainId};
 use reth_tasks::TaskManager;
 use thiserror::Error;
 

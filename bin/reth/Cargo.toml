@@ -80,7 +80,8 @@ reth-optimism-rpc.workspace = true
 
 # crypto
 alloy-rlp.workspace = true
-
+alloy-signer-local.workspace = true
+alloy-network.workspace = true
 # tracing
 tracing.workspace = true
 
@@ -101,6 +102,7 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ] }
 futures.workspace = true
+jsonrpsee.workspace = true
 
 # misc
 aquamarine.workspace = true

@@ -39,7 +39,7 @@ use reth_primitives::{
 };
 use reth_provider::StateProviderFactory;
 use reth_revm::database::{StateProviderDatabase, SyncStateProviderDatabase};
-use reth_transaction_pool::{BestTransactionsAttributes, TransactionPool};
+use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use reth_trie::HashedPostState;
 use revm::{
     db::{states::bundle_state::BundleRetention, State},
@@ -361,7 +361,7 @@ where
     let mut receipts = Vec::new();
     while let Some(pool_tx) = best_txs.next() {
         // ensure we still have capacity for this transaction
-        println!("Brecht: pool tx! {:?}", pool_tx.hash());
+        println!("Brecht: pool tx! {:?} - {:?}", pool_tx.transaction.chain_id(), pool_tx.hash());
         if cumulative_gas_used + pool_tx.gas_limit() > block_gas_limit {
             // we can't fit this transaction into the block, so we need to mark it as invalid
             // which also removes all dependent transaction from the iterator before we can
@@ -475,6 +475,9 @@ where
             cached_reads: sync_cached_reads.into(),
         });
     }
+
+    println!("Tx made it to payload in Reth! - {:?} reciept {:?}", chain_spec.chain().id(), receipts.get(0));
+
 
     // calculate the requests and the requests root
     let (requests, requests_root) = if chain_spec
@@ -592,7 +595,7 @@ where
     let sealed_block = block.seal_slow();
     debug!(target: "payload_builder", ?sealed_block, "sealed built block");
 
-    println!("default payload done [{:?}]: {:?}", sealed_block.hash(), sealed_block.state_root);
+    println!("default_ethereum_payload_builder {} - new_hash:{:?} parent {:?}", chain_spec.chain().id(), sealed_block.hash(), parent_block.hash());
 
     let mut payload = EthBuiltPayload::new(attributes.id, sealed_block, total_fees);
 

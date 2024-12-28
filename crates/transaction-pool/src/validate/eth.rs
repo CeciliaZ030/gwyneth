@@ -344,6 +344,7 @@ where
         }
 
         let cost = transaction.cost();
+        println!("cost: {:?} account {:?}", cost, account.balance);
 
         // Checks for max cost
         if cost > account.balance {

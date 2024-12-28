@@ -1082,7 +1082,6 @@ where
         payload: ExecutionPayload,
         cancun_fields: Option<CancunPayloadFields>,
     ) -> Result<Either<PayloadStatus, SealedBlock>, BeaconOnNewPayloadError> {
-        println!("BeaconConsensusEngine:on_new_payload");
         self.metrics.new_payload_messages.increment(1);
 
         // Ensures that the given payload does not violate any consensus rules that concern the
@@ -1859,9 +1858,11 @@ where
                 if let Poll::Ready(Some(msg)) = this.engine_message_stream.poll_next_unpin(cx) {
                     match msg {
                         BeaconEngineMessage::ForkchoiceUpdated { state, payload_attrs, tx } => {
+                            println!("BeaconConsensusEngine:ForkchoiceUpdated");
                             this.on_forkchoice_updated(state, payload_attrs, tx);
                         }
                         BeaconEngineMessage::NewPayload { payload, cancun_fields, tx } => {
+                            println!("BeaconConsensusEngine:on_new_payload");
                             match this.on_new_payload(payload, cancun_fields) {
                                 Ok(Either::Right(block)) => {
                                     this.set_blockchain_tree_action(
