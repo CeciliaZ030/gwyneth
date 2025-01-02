@@ -1,7 +1,8 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::{Arc, RwLock}};
 
 use alloy_rlp::Decodable;
 use alloy_sol_types::{sol, SolEventInterface};
+use reth_chainspec::Head;
 use reth_rpc_builder::auth::AuthServerHandle;
 
 use crate::{
@@ -21,7 +22,7 @@ use reth_node_builder::{components::Components, FullNode, NodeAdapter, NodeCompo
 use reth_node_ethereum::{node::EthereumAddOns, EthExecutorProvider};
 use reth_payload_builder::{EthBuiltPayload, PayloadBuilderHandle};
 use reth_primitives::{
-    address, Address, SealedBlock, SealedBlockWithSenders, TransactionSigned, B256, U256,
+    address, Address, Header, SealedBlock, SealedBlockWithSenders, SealedHeader, TransactionSigned, B256, U256
 };
 use reth_provider::{
     providers::{BlockchainProvider, BlockchainProvider2},
@@ -115,14 +116,47 @@ impl GwynethFullNode {
     }
 }
 
+#[derive(Debug)]
+pub struct L1ParentState {
+    pub block_number: u64,
+    // None at launch
+    pub header: Option<SealedHeader>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct L1ParentStates(Arc<Vec<RwLock<L1ParentState>>>);
+
+impl L1ParentStates {
+    pub fn new(instances: usize) -> Self {
+        let states = (0..instances).map(|_| {
+            RwLock::new(L1ParentState {block_number: 0, header: None})
+        }).collect::<Vec<_>>();
+        Self(Arc::new(states))
+    }
+
+    pub fn get(&self, node_idx: usize) -> (u64, Option<SealedHeader>) {
+        let state = self.0[node_idx].read().expect("L1ParentStates lock poisoned");
+        (state.block_number, state.header.clone())
+    }
+
+    pub async fn update (&self, block: &SealedBlockWithSenders, node_idx: usize) -> eyre::Result<()> {
+        let mut state = self.0[node_idx].write()
+            .expect("L1ParentStates lock poisoned");
+        state.block_number = block.number;
+        state.header = Some(block.header.clone());
+        Ok(())
+    }
+}
+
 pub struct Rollup<Node: reth_node_api::FullNodeComponents> {
     ctx: ExExContext<Node>,
     nodes: Vec<GwynethFullNode>,
     engine_apis: Vec<EngineApiContext<GwynethEngineTypes>>,
+    pub l1_parents: L1ParentStates,
 }
 
 impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
-    pub async fn new(ctx: ExExContext<Node>, nodes: Vec<GwynethFullNode>) -> eyre::Result<Self> {
+    pub async fn new(ctx: ExExContext<Node>, nodes: Vec<GwynethFullNode>, l1_parents: L1ParentStates) -> eyre::Result<Self> {
         let mut engine_apis = Vec::new();
         for node in &nodes {
             match node {
@@ -144,7 +178,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 }
             }
         }
-        Ok(Self { ctx, nodes, engine_apis })
+        Ok(Self { ctx, nodes, engine_apis, l1_parents })
     }
 
     pub async fn start(mut self) -> eyre::Result<()> {
@@ -159,6 +193,14 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 }
                 self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().number))?;
             }
+
+            if let Some(commited_block) = notification.commited_block() {
+                for i in 0..self.nodes.len() {
+                    let mut state = self.l1_parents.0[i].write().expect("L1ParentStates lock poisoned");
+                    state.block_number = commited_block.number;
+                    state.header = Some(commited_block.clone());
+                }
+            }
         }
 
         Ok(())
@@ -168,12 +210,12 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
         let node = &self.nodes[node_idx];
         let events = decode_chain_into_rollup_events(chain);
         for (block, _, event) in events {
+            println!("[reth] Exex Gwyneth: synced_l1_header: {:?}, synced_l1_number: {:?}", self.ctx.head.hash, self.ctx.head.number);
             if let RollupContractEvents::BlockProposed(BlockProposed {
                 blockId: block_number,
                 meta,
             }) = event
             {
-                println!("[reth] Exex Gwyneth: synced_l1_header: {:?}, synced_l1_number: {:?}", self.ctx.head.hash, self.ctx.head.number);
                 println!("[reth] l2 {} block_number: {:?}", node.chain_id(), block_number);
                 let transactions: Vec<TransactionSigned> = decode_transactions(&meta.txList);
                 println!("tx_list: {:?}", transactions);
@@ -184,6 +226,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     .collect();
 
                 if filtered_transactions.len() == 0 {
+                    self.l1_parents.update(block, node_idx).await?;
                     println!("no transactions for chain: {}", node.chain_id());
                     continue;
                 }
@@ -208,6 +251,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     .state_provider_by_block_number(block.number)
                     .unwrap();
 
+                // TODO(Cecilia): Should insert all necessary L2 providers here, not just L1
                 let mut builder_attrs =
                     GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs).unwrap();
                 builder_attrs.l1_provider =
@@ -260,8 +304,8 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 // trigger forkchoice update via engine api to commit the block to the blockchain
                 self.engine_apis[node_idx].update_forkchoice(block_hash, block_hash).await?;
             }
+            self.l1_parents.update(block, node_idx).await?;
         }
-
         Ok(())
     }
 

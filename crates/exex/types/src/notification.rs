@@ -11,6 +11,10 @@ pub enum ExExNotification {
         /// The new chain after commit.
         new: Arc<Chain>,
     },
+    SingleBlockCommitted {
+        /// The new chain after commit.
+        new: reth_primitives::SealedHeader,
+    },
     /// Chain got reorged, and both the old and the new chains are returned.
     ChainReorged {
         /// The old chain before reorg.
@@ -32,6 +36,14 @@ impl ExExNotification {
         match self {
             Self::ChainCommitted { new } | Self::ChainReorged { old: _, new } => Some(new.clone()),
             Self::ChainReverted { .. } => None,
+            Self::SingleBlockCommitted { .. } => None,
+        }
+    }
+
+    pub fn commited_block(&self) -> Option<reth_primitives::SealedHeader> {
+        match self {
+            Self::SingleBlockCommitted { new } => Some(new.clone()),
+            _ => None,
         }
     }
 
@@ -41,6 +53,7 @@ impl ExExNotification {
         match self {
             Self::ChainReorged { old, new: _ } | Self::ChainReverted { old } => Some(old.clone()),
             Self::ChainCommitted { .. } => None,
+            Self::SingleBlockCommitted { .. } => None,
         }
     }
 }

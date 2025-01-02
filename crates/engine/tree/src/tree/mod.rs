@@ -1577,7 +1577,7 @@ where
 
         // sends an event to all active listeners about the new canonical chain
         self.canonical_in_memory_state.notify_canon_state(notification);
-
+        println!("💡 EngineApiTreHandler::on_canonical_chain_update ?");
         // emit event
         self.emit_event(BeaconConsensusEngineEvent::CanonicalChainCommitted(
             Box::new(tip),
@@ -1806,6 +1806,7 @@ where
         let engine_event = if self.state.tree_state.is_fork(block_hash) {
             BeaconConsensusEngineEvent::ForkBlockAdded(sealed_block)
         } else {
+            println!("🎄 BeaconConsensusEngineEvent::CanonicalBlockAdded ?");
             BeaconConsensusEngineEvent::CanonicalBlockAdded(sealed_block, start.elapsed())
         };
         self.emit_event(EngineApiEvent::BeaconConsensus(engine_event));

@@ -6413,6 +6413,7 @@ dependencies = [
  "reth-ethereum-engine-primitives",
  "reth-evm",
  "reth-evm-ethereum",
+ "reth-exex",
  "reth-exex-types",
  "reth-metrics",
  "reth-network-p2p",
@@ -7465,6 +7466,7 @@ name = "reth-exex-types"
 version = "1.0.6"
 dependencies = [
  "alloy-primitives 0.8.8",
+ "reth-primitives",
  "reth-provider",
  "serde",
 ]
