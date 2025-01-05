@@ -247,7 +247,7 @@ mod tests {
     }
 
     #[tokio::test]
-    fn test_creating_nodes() {
+    async fn test_creating_nodes() {
         let args = GwynethArgs {
             chain_ids: vec![160010, 160011],
             datadirs: vec!["path/one".into(), "path/two".into()],

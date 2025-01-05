@@ -361,7 +361,7 @@ where
     let mut receipts = Vec::new();
     while let Some(pool_tx) = best_txs.next() {
         // ensure we still have capacity for this transaction
-        println!("Brecht: pool tx! {:?} - {:?}", pool_tx.transaction.chain_id(), pool_tx.hash());
+        // println!("Brecht: pool tx! {:?} - {:?}", pool_tx.transaction.chain_id(), pool_tx.hash());
         if cumulative_gas_used + pool_tx.gas_limit() > block_gas_limit {
             // we can't fit this transaction into the block, so we need to mark it as invalid
             // which also removes all dependent transaction from the iterator before we can

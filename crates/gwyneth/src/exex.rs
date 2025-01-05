@@ -1,9 +1,10 @@
-use std::{marker::PhantomData, sync::{Arc, RwLock}};
+use std::{collections::HashMap, marker::PhantomData, sync::{Arc, RwLock}, time::Duration};
 
 use alloy_rlp::Decodable;
 use alloy_sol_types::{sol, SolEventInterface};
 use reth_chainspec::Head;
 use reth_rpc_builder::auth::AuthServerHandle;
+use tokio::time::sleep;
 
 use crate::{
     engine_api::EngineApiContext, GwynethEngineTypes, GwynethNode, GwynethPayloadAttributes,
@@ -124,23 +125,32 @@ pub struct L1ParentState {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct L1ParentStates(Arc<Vec<RwLock<L1ParentState>>>);
+pub struct L1ParentStates(Arc<HashMap<u64, RwLock<L1ParentState>>>);
 
 impl L1ParentStates {
-    pub fn new(instances: usize) -> Self {
-        let states = (0..instances).map(|_| {
-            RwLock::new(L1ParentState {block_number: 0, header: None})
-        }).collect::<Vec<_>>();
-        Self(Arc::new(states))
+    pub fn new(nodes: &Vec<GwynethFullNode>) -> Self {
+        let states = nodes.iter().map(|node| {
+            let chain_id = node.chain_id();
+            let state = RwLock::new(L1ParentState {block_number: 0, header: None});
+            (chain_id, state)
+        }).collect::<HashMap<_, _>>();
+        L1ParentStates(Arc::new(states))
     }
 
-    pub fn get(&self, node_idx: usize) -> (u64, Option<SealedHeader>) {
-        let state = self.0[node_idx].read().expect("L1ParentStates lock poisoned");
+    pub fn get(&self, chain_id: u64) -> (u64, Option<SealedHeader>) {
+        let state = self.0
+            .get(&chain_id)
+            .expect("L1ParentStates: chain_id not found")
+            .read()
+            .expect("L1ParentStates lock poisoned");
         (state.block_number, state.header.clone())
     }
 
-    pub async fn update (&self, block: &SealedBlockWithSenders, node_idx: usize) -> eyre::Result<()> {
-        let mut state = self.0[node_idx].write()
+    pub async fn update (&self, block: &SealedBlockWithSenders, chain_id: u64) -> eyre::Result<()> {
+        let mut state = self.0
+            .get(&chain_id)
+            .expect("L1ParentStates: chain_id not found")
+            .write()
             .expect("L1ParentStates lock poisoned");
         state.block_number = block.number;
         state.header = Some(block.header.clone());
@@ -188,29 +198,32 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
             }
 
             if let Some(committed_chain) = notification.committed_chain() {
-                for i in 0..self.nodes.len() {
+                println!("[reth] Exex Gwyneth: synced_l1_header: {:?}, synced_l1_number: {:?}", committed_chain.tip().hash(), committed_chain.tip().number);
+                for (i, node) in self.nodes.iter().enumerate() {
                     self.commit(&committed_chain, i).await?;
+                    self.l1_parents.update(committed_chain.tip(), node.chain_id()).await?;
                 }
                 self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().number))?;
             }
 
             if let Some(commited_block) = notification.commited_block() {
-                for i in 0..self.nodes.len() {
-                    let mut state = self.l1_parents.0[i].write().expect("L1ParentStates lock poisoned");
-                    state.block_number = commited_block.number;
-                    state.header = Some(commited_block.clone());
-                }
+                // self.l1_parents.0
+                //     .iter()
+                //     .for_each(|(_, state)| {
+                //         let mut state = state.write().unwrap();
+                //         state.block_number = commited_block.header().number;
+                //         state.header = Some(commited_block.clone());
+                //     });
             }
         }
 
         Ok(())
     }
 
-    pub async fn commit(&mut self, chain: &Chain, node_idx: usize) -> eyre::Result<()> {
+    pub async fn commit(&self, chain: &Chain, node_idx: usize) -> eyre::Result<()> {
         let node = &self.nodes[node_idx];
         let events = decode_chain_into_rollup_events(chain);
         for (block, _, event) in events {
-            println!("[reth] Exex Gwyneth: synced_l1_header: {:?}, synced_l1_number: {:?}", self.ctx.head.hash, self.ctx.head.number);
             if let RollupContractEvents::BlockProposed(BlockProposed {
                 blockId: block_number,
                 meta,
@@ -226,7 +239,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     .collect();
 
                 if filtered_transactions.len() == 0 {
-                    self.l1_parents.update(block, node_idx).await?;
+                    self.l1_parents.update(block, node.chain_id()).await?;
                     println!("no transactions for chain: {}", node.chain_id());
                     continue;
                 }
@@ -251,7 +264,6 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     .state_provider_by_block_number(block.number)
                     .unwrap();
 
-                // TODO(Cecilia): Should insert all necessary L2 providers here, not just L1
                 let mut builder_attrs =
                     GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs).unwrap();
                 builder_attrs.l1_provider =
@@ -260,6 +272,8 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 let payload_id = builder_attrs.inner.payload_id();
                 let parrent_beacon_block_root =
                     builder_attrs.inner.parent_beacon_block_root.unwrap();
+
+                println!("👛 Exex: sending payload_id: {:?}\n {:?}", payload_id, builder_attrs);
 
                 // trigger new payload building draining the pool
                 node.payload_builder().new_payload(builder_attrs).await.unwrap();
@@ -304,7 +318,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 // trigger forkchoice update via engine api to commit the block to the blockchain
                 self.engine_apis[node_idx].update_forkchoice(block_hash, block_hash).await?;
             }
-            self.l1_parents.update(block, node_idx).await?;
+            self.l1_parents.update(block, node.chain_id()).await?;
         }
         Ok(())
     }

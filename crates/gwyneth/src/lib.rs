@@ -131,6 +131,7 @@ impl<SyncProvider: Debug + Sync + Send> PayloadBuilderAttributes
 
     fn try_new(
         parent: B256,
+        // TODO: make this EthAttributea
         attributes: GwynethPayloadAttributes,
     ) -> Result<Self, alloy_rlp::Error> {
         let transactions = attributes
@@ -153,6 +154,7 @@ impl<SyncProvider: Debug + Sync + Send> PayloadBuilderAttributes
     }
 
     fn parent(&self) -> B256 {
+        println!("👛 parent is L1 parent {:?}", self.inner.parent);
         self.inner.parent
     }
 

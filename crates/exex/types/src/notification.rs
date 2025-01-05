@@ -41,6 +41,7 @@ impl ExExNotification {
     }
 
     pub fn commited_block(&self) -> Option<reth_primitives::SealedHeader> {
+        println!("ExexNotification::commited_block");
         match self {
             Self::SingleBlockCommitted { new } => Some(new.clone()),
             _ => None,

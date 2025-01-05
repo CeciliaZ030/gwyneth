@@ -216,6 +216,7 @@ where
             pruner,
             ctx.components().payload_builder().clone(),
             TreeConfig::default(),
+            exex_manager_handle,
         );
 
         let event_sender = EventSender::default();

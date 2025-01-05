@@ -180,7 +180,7 @@ where
         let cached_reads = self.maybe_pre_cached(config.parent_block.hash());
 
         let mut job = BasicPayloadJob {
-            config,
+            config: config.clone(),
             client: self.client.clone(),
             pool: self.pool.clone(),
             executor: self.executor.clone(),
@@ -194,6 +194,10 @@ where
             metrics: Default::default(),
             builder: self.builder.clone(),
         };
+        println!(
+            "👛 starting job with conifg {:?} {:?}",
+            config.initialized_block_env, config.initialized_cfg
+        );
 
         // start the first job right away
         job.spawn_build_job();
