@@ -23,7 +23,7 @@ fn main() -> eyre::Result<()> {
             builder.task_executor().clone(),
             builder.config()
         ).await;
-        let l1_parents = L1ParentStates::new(gwyneth_nodes.len());
+        let l1_parents = L1ParentStates::new(&gwyneth_nodes);
         
         let handle = builder
             .node(EthereumNode::default())
