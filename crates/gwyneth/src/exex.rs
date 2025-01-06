@@ -198,7 +198,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
             }
 
             if let Some(committed_chain) = notification.committed_chain() {
-                println!("[reth] Exex Gwyneth: synced_l1_header: {:?}, synced_l1_number: {:?}", committed_chain.tip().hash(), committed_chain.tip().number);
+                println!("[reth] Exex Gwyneth: synced_l1_header 🎃 {:?}, synced_l1_number: {:?}", committed_chain.tip().hash(), committed_chain.tip().number);
                 for (i, node) in self.nodes.iter().enumerate() {
                     self.commit(&committed_chain, i).await?;
                     self.l1_parents.update(committed_chain.tip(), node.chain_id()).await?;
