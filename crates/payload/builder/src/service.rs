@@ -280,7 +280,7 @@ where
         id: PayloadId,
     ) -> Option<Result<Engine::BuiltPayload, PayloadBuilderError>> {
         println!("👛 Finding best payload for {:?}", id);
-        println!("just created new {:?}", self.payload_jobs.iter().map(|(_, id)| id).collect::<Vec<_>>());
+        println!("just found new {:?}", self.payload_jobs.iter().map(|(_, id)| id).collect::<Vec<_>>());
         let res = self
             .payload_jobs
             .iter()

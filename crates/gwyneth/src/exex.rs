@@ -231,7 +231,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
             {
                 println!("[reth] l2 {} block_number: {:?}", node.chain_id(), block_number);
                 let transactions: Vec<TransactionSigned> = decode_transactions(&meta.txList);
-                println!("tx_list: {:?}", transactions);
+                println!("tx_list 🎉 : {:?}", transactions);
 
                 let filtered_transactions: Vec<TransactionSigned> = transactions
                     .into_iter()
