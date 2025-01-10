@@ -403,6 +403,8 @@ where
                     "💡 BeaconConsensusEngne::on_forkchoice_updated_make_canonical_result {:?}",
                     attrs.clone().map_or("no attr", |attr| "send PayloadServiceCommand::BuildNewPayload")
                 );
+                // Don't build L1 payload in reth-rbuilder
+                attrs = None;
                 let should_update_head = match &outcome {
                     CanonicalOutcome::AlreadyCanonical { head, header } => {
                         self.on_head_already_canonical(head, header, &mut attrs)
