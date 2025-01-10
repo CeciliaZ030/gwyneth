@@ -221,7 +221,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
             {
                 println!("[reth] l2 {} l1 block_number: {:?}", node.chain_id(), block_number);
                 let transactions: Vec<TransactionSigned> = decode_transactions(&meta.txList);
-                println!("tx_list 🎉 : {:?}", transactions);
+                println!("tx_list 🎉 : {:?}", transactions.len());
 
                 let filtered_transactions: Vec<TransactionSigned> = transactions
                     .into_iter()
@@ -263,7 +263,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 let parrent_beacon_block_root =
                     builder_attrs.inner.parent_beacon_block_root.unwrap();
 
-                println!("👛 Exex: sending payload_id: {:?}\n {:?}", payload_id, builder_attrs);
+                println!("👛 Exex: sending payload_id: {:?}\n tx {:?}", payload_id, builder_attrs.transactions.len());
 
                 // trigger new payload building draining the pool
                 node.payload_builder().new_payload(builder_attrs).await.unwrap();

@@ -349,7 +349,7 @@ where
         origin: TransactionOrigin,
         transaction: Self::Transaction,
     ) -> PoolResult<TxHash> {
-        print!("[reth] impl<V, T, S> TransactionPool:: add_transaction");
+        println!("[reth] impl<V, T, S> TransactionPool:: add_transaction");
         let (_, tx) = self.validate(origin, transaction).await;
         let mut results = self.pool.add_transactions(origin, std::iter::once(tx));
         results.pop().expect("result length is the same as the input")
