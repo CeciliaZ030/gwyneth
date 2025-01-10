@@ -308,7 +308,6 @@ where
         block: &BlockWithSenders,
         total_difficulty: U256,
     ) -> Result<EthExecuteOutput, BlockExecutionError> {
-        println!("EthBlockExecutor::execute_without_verification");
 
         // 1. prepare state on new block
         self.on_new_block(&block.header);

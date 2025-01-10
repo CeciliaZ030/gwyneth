@@ -476,9 +476,6 @@ where
         });
     }
 
-    println!("Tx made it to payload in Reth! - {:?} reciept {:?}", chain_spec.chain().id(), receipts.get(0));
-
-
     // calculate the requests and the requests root
     let (requests, requests_root) = if chain_spec
         .is_prague_active_at_timestamp(attributes.timestamp)
@@ -595,7 +592,7 @@ where
     let sealed_block = block.seal_slow();
     debug!(target: "payload_builder", ?sealed_block, "sealed built block");
 
-    println!("default_ethereum_payload_builder {} - new_hash:{:?} parent {:?}", chain_spec.chain().id(), sealed_block.hash(), parent_block.hash());
+    println!("default_ethereum_payload_builder {} - new_hash:{:?}", chain_spec.chain().id(), sealed_block.hash());
 
     let mut payload = EthBuiltPayload::new(attributes.id, sealed_block, total_fees);
 

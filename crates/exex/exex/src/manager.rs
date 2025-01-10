@@ -105,20 +105,6 @@ impl ExExHandle {
                         return Poll::Ready(Ok(()))
                     }
                 },
-                ExExNotification::SingleBlockCommitted { new } => {
-                    if finished_height >= new.number {
-                        debug!(
-                            exex_id = %self.id,
-                            %notification_id,
-                            %finished_height,
-                            new_tip = %new.number,
-                            "Skipping notification"
-                        );
-
-                        self.next_notification_id = notification_id + 1;
-                        return Poll::Ready(Ok(()))
-                    }
-                },
                 // Do not handle [ExExNotification::ChainReorged] and
                 // [ExExNotification::ChainReverted] cases and always send the
                 // notification, because the ExEx should be aware of the reorgs and reverts lower

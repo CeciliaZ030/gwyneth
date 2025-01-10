@@ -402,7 +402,7 @@ where
             while let Poll::Ready(Some(cmd)) = this.command_rx.poll_next_unpin(cx) {
                 match cmd {
                     PayloadServiceCommand::BuildNewPayload(attr, tx) => {
-                        println!("👛 PayloadBuilderService::poll BuildNewPayload");
+                        println!("PayloadBuilderService::poll BuildNewPayload from parent 👛 {:?}", attr.payload_id());
                         let id = attr.payload_id();
                         let mut res = Ok(id);
 

@@ -194,10 +194,6 @@ where
             metrics: Default::default(),
             builder: self.builder.clone(),
         };
-        println!(
-            "👛 starting job with conifg {:?} {:?}",
-            config.initialized_block_env, config.initialized_cfg
-        );
 
         // start the first job right away
         job.spawn_build_job();

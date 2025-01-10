@@ -222,8 +222,6 @@ where
     event_sender: EventSender<BeaconConsensusEngineEvent>,
     /// Consensus engine metrics.
     metrics: EngineMetrics,
-
-    exex_handle: Option<reth_exex::ExExManagerHandle>,
 }
 
 impl<DB, BT, Client, EngineT> BeaconConsensusEngine<DB, BT, Client, EngineT>
@@ -326,7 +324,6 @@ where
             hooks: EngineHooksController::new(hooks),
             event_sender,
             metrics: EngineMetrics::default(),
-            exex_handle,
         };
 
         let maybe_pipeline_target = match target {
@@ -402,6 +399,10 @@ where
     ) -> Result<OnForkChoiceUpdated, CanonicalError> {
         match make_canonical_result {
             Ok(outcome) => {
+                println!(
+                    "💡 BeaconConsensusEngne::on_forkchoice_updated_make_canonical_result {:?}",
+                    attrs.clone().map_or("no attr", |attr| "send PayloadServiceCommand::BuildNewPayload")
+                );
                 let should_update_head = match &outcome {
                     CanonicalOutcome::AlreadyCanonical { head, header } => {
                         self.on_head_already_canonical(head, header, &mut attrs)
@@ -416,17 +417,10 @@ where
                 if should_update_head {
                     let head = outcome.header();
                     let _ = self.update_head(head.clone());
-                    println!("💡 BeaconConsensusEngne::on_forkchoice_updated_make_canonical_result");
                     self.event_sender.notify(BeaconConsensusEngineEvent::CanonicalChainCommitted(
                         Box::new(head.clone()),
                         elapsed,
                     ));
-                    if let Some(exex) = self.exex_handle.as_ref() {
-                        exex.send(reth_exex::ExExNotification::SingleBlockCommitted {
-                            new: head.clone(),
-                        })
-                        .expect("Failed to send ExEx notification");
-                    }
                 }
 
                 // Validate that the forkchoice state is consistent.
@@ -1256,7 +1250,6 @@ where
                 latest_valid_hash = Some(block_hash);
                 let block = Arc::new(block);
                 let event = if attachment.is_canonical() {
-                    println!("🎄 BeaconConsensusEngine::try_insert_new_payload");
                     BeaconConsensusEngineEvent::CanonicalBlockAdded(block, elapsed)
                 } else {
                     BeaconConsensusEngineEvent::ForkBlockAdded(block)
@@ -1361,10 +1354,6 @@ where
                         Box::new(head.clone()),
                         elapsed,
                     ));
-                    if let Some(exex) = self.exex_handle.as_ref() {
-                        exex.send(reth_exex::ExExNotification::SingleBlockCommitted { new: head.clone() })
-                            .expect("Failed to send ExEx notification");
-                    }
                 }
 
                 let new_head = outcome.into_header();
@@ -1876,11 +1865,19 @@ where
                 if let Poll::Ready(Some(msg)) = this.engine_message_stream.poll_next_unpin(cx) {
                     match msg {
                         BeaconEngineMessage::ForkchoiceUpdated { state, payload_attrs, tx } => {
-                            println!("BeaconConsensusEngine:ForkchoiceUpdated");
+                            use crate::engine::PayloadAttributes;
+                            println!(
+                                "[reth] BeaconConsensusEngine:ForkchoiceUpdated 🎄 {:?} {:?}", 
+                                state.head_block_hash, 
+                                payload_attrs.clone().map_or("Empty".to_string(), |p| format!("{}", p.timestamp()))
+                            );
                             this.on_forkchoice_updated(state, payload_attrs, tx);
                         }
                         BeaconEngineMessage::NewPayload { payload, cancun_fields, tx } => {
-                            println!("BeaconConsensusEngine:on_new_payload");
+                            println!(
+                                "[reth] BeaconConsensusEngine:on_new_payload 🎄 {:?}",
+                                payload.block_hash()
+                            );
                             match this.on_new_payload(payload, cancun_fields) {
                                 Ok(Either::Right(block)) => {
                                     this.set_blockchain_tree_action(

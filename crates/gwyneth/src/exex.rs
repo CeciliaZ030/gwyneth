@@ -205,16 +205,6 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 }
                 self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().number))?;
             }
-
-            if let Some(commited_block) = notification.commited_block() {
-                // self.l1_parents.0
-                //     .iter()
-                //     .for_each(|(_, state)| {
-                //         let mut state = state.write().unwrap();
-                //         state.block_number = commited_block.header().number;
-                //         state.header = Some(commited_block.clone());
-                //     });
-            }
         }
 
         Ok(())
@@ -229,7 +219,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 meta,
             }) = event
             {
-                println!("[reth] l2 {} block_number: {:?}", node.chain_id(), block_number);
+                println!("[reth] l2 {} l1 block_number: {:?}", node.chain_id(), block_number);
                 let transactions: Vec<TransactionSigned> = decode_transactions(&meta.txList);
                 println!("tx_list 🎉 : {:?}", transactions);
 

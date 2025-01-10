@@ -416,8 +416,6 @@ pub struct EngineApiTreeHandler<P, E, T: EngineTypes> {
     config: TreeConfig,
     /// Metrics for the engine api.
     metrics: EngineApiMetrics,
-
-    exex_manager_handle: Option<ExExManagerHandle>,
 }
 
 impl<P, E, T> EngineApiTreeHandler<P, E, T>
@@ -440,7 +438,6 @@ where
         persistence_state: PersistenceState,
         payload_builder: PayloadBuilderHandle<T>,
         config: TreeConfig,
-        exex_manager_handle: Option<ExExManagerHandle>,
     ) -> Self {
         let (incoming_tx, incoming) = std::sync::mpsc::channel();
         Self {
@@ -459,7 +456,6 @@ where
             config,
             metrics: Default::default(),
             incoming_tx,
-            exex_manager_handle
         }
     }
 
@@ -508,7 +504,6 @@ where
             persistence_state,
             payload_builder,
             config,
-            exex_manager_handle,
         );
         let incoming = task.incoming_tx.clone();
         std::thread::Builder::new().name("Tree Task".to_string()).spawn(|| task.run()).unwrap();
@@ -1813,11 +1808,6 @@ where
         let engine_event = if self.state.tree_state.is_fork(block_hash) {
             BeaconConsensusEngineEvent::ForkBlockAdded(sealed_block)
         } else {
-            println!("🎄 BeaconConsensusEngineEvent::CanonicalBlockAdded ?");
-            if let Some(exex) = self.exex_manager_handle.as_ref() {
-                exex.send(reth_exex::ExExNotification::SingleBlockCommitted { new: sealed_block.header.clone() })
-                    .expect("Failed to send ExExNotification::SingleBlockCommitted from BeaconConsensusEngineEvent");
-            }
             BeaconConsensusEngineEvent::CanonicalBlockAdded(sealed_block, start.elapsed())
         };
         self.emit_event(EngineApiEvent::BeaconConsensus(engine_event));
