@@ -154,7 +154,6 @@ impl<SyncProvider: Debug + Sync + Send> PayloadBuilderAttributes
     }
 
     fn parent(&self) -> B256 {
-        println!("👛 parent is L1 parent {:?}", self.inner.parent);
         self.inner.parent
     }
 
