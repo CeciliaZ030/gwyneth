@@ -119,7 +119,8 @@ pub struct GwynethPayloadBuilderAttributes<SyncProvider> {
     pub transactions: Vec<WithEncoded<TransactionSigned>>,
     /// The gas limit for the generated payload
     pub gas_limit: Option<u64>,
-
+    /// Cross-chain provider for L1
+    /// TODO: make this HashMap<ChainId, SyncProvider> for multiple chains
     pub l1_provider: Option<(ChainId, SyncProvider)>,
 }
 

@@ -400,7 +400,7 @@ where
         match make_canonical_result {
             Ok(outcome) => {
                 println!(
-                    "💡 BeaconConsensusEngne::on_forkchoice_updated_make_canonical_result {:?}",
+                    "BeaconConsensusEngne::on_forkchoice_updated_make_canonical_result 💡 {:?}",
                     attrs.clone().map_or("no attr", |attr| "send PayloadServiceCommand::BuildNewPayload")
                 );
                 // Don't build L1 payload in reth-rbuilder
@@ -1351,7 +1351,6 @@ where
         match make_canonical_result {
             Ok(outcome) => {
                 if let CanonicalOutcome::Committed { head } = &outcome {
-                    println!("💡 BeaconConsensusEngne::try_make_sync_target_canonical");
                     self.event_sender.notify(BeaconConsensusEngineEvent::CanonicalChainCommitted(
                         Box::new(head.clone()),
                         elapsed,
