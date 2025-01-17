@@ -157,6 +157,7 @@ impl Command {
             None,
             u64::MAX,
             EngineHooks::new(),
+            false,
         )?;
         info!(target: "reth::cli", "Consensus engine initialized");
 

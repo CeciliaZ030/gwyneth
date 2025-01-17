@@ -36,6 +36,10 @@ pub struct PayloadBuilderArgs {
     /// Maximum number of tasks to spawn for building a payload.
     #[arg(long = "builder.max-tasks", default_value = "3", value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
     pub max_payload_tasks: usize,
+
+    /// Used in reth-rbuilder to ignore the payload building when gwyneth has in-process builder
+    #[arg(long = "builder.ignore-payload", default_value = "false")]
+    pub ignore_payload: bool,
 }
 
 impl Default for PayloadBuilderArgs {
@@ -46,6 +50,7 @@ impl Default for PayloadBuilderArgs {
             interval: Duration::from_secs(1),
             deadline: SLOT_DURATION,
             max_payload_tasks: 3,
+            ignore_payload: false,
         }
     }
 }

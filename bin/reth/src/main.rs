@@ -18,6 +18,7 @@ use alloy_network::eip2718::Encodable2718;
 fn main() -> eyre::Result<()> {
     println!("WTF");
     reth::cli::Cli::<GwynethArgs>::parse_args_l2().run(|builder, arg| async move {
+        println!("ignore-payload {:?}", builder.config().builder.ignore_payload);
         let gwyneth_nodes = create_gwyneth_nodes(
             &arg, 
             builder.task_executor().clone(),

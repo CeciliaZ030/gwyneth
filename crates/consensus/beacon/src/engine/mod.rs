@@ -222,6 +222,8 @@ where
     event_sender: EventSender<BeaconConsensusEngineEvent>,
     /// Consensus engine metrics.
     metrics: EngineMetrics,
+
+    ignore_payload: bool,
 }
 
 impl<DB, BT, Client, EngineT> BeaconConsensusEngine<DB, BT, Client, EngineT>
@@ -250,6 +252,7 @@ where
         target: Option<B256>,
         pipeline_run_threshold: u64,
         hooks: EngineHooks,
+        ignore_payload: bool,
     ) -> RethResult<(Self, BeaconConsensusEngineHandle<EngineT>)> {
         let (to_engine, rx) = mpsc::unbounded_channel();
         Self::with_channel(
@@ -266,6 +269,7 @@ where
             Box::pin(UnboundedReceiverStream::from(rx)),
             hooks,
             None,
+            ignore_payload,
         )
     }
 
@@ -297,6 +301,7 @@ where
         engine_message_stream: BoxStream<'static, BeaconEngineMessage<EngineT>>,
         hooks: EngineHooks,
         exex_handle: Option<reth_exex::ExExManagerHandle>,
+        ignore_payload: bool,
     ) -> RethResult<(Self, BeaconConsensusEngineHandle<EngineT>)> {
         let event_sender = EventSender::default();
         let handle = BeaconConsensusEngineHandle::new(to_engine, event_sender.clone());
@@ -324,6 +329,7 @@ where
             hooks: EngineHooksController::new(hooks),
             event_sender,
             metrics: EngineMetrics::default(),
+            ignore_payload,
         };
 
         let maybe_pipeline_target = match target {
@@ -404,7 +410,7 @@ where
                     attrs.clone().map_or("no attr", |attr| "send PayloadServiceCommand::BuildNewPayload")
                 );
                 // Don't build L1 payload in reth-rbuilder
-                attrs = None;
+                // attrs = None;
                 let should_update_head = match &outcome {
                     CanonicalOutcome::AlreadyCanonical { head, header } => {
                         self.on_head_already_canonical(head, header, &mut attrs)
