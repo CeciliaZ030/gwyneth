@@ -12,8 +12,7 @@ use reth_provider::CanonStateNotificationStream;
 use reth_rpc_api::EngineApiClient;
 use reth_rpc_layer::AuthClientService;
 use reth_rpc_types::{
-    engine::{ForkchoiceState, PayloadStatusEnum},
-    ExecutionPayloadV3,
+    engine::{ForkchoiceState, PayloadStatusEnum}, BlockNumberOrTag, ExecutionPayloadV3
 };
 /// Helper for engine api operations
 pub struct EngineApiContext<E> {

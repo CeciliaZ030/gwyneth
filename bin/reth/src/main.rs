@@ -11,6 +11,7 @@ use alloy_signer_local::PrivateKeySigner;
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use gwyneth::{cli::{create_gwyneth_nodes, GwynethArgs}, exex::L1ParentStates};
 use reth_node_ethereum::EthereumNode;
+use reth_provider::NODES;
 use reth_primitives::{Address, B256, U256};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
 use alloy_network::eip2718::Encodable2718;
@@ -34,8 +35,9 @@ fn main() -> eyre::Result<()> {
             .launch()
             .await?;
 
-        handle.wait_for_node_exit().await?;
-        Ok(())
+        NODES.lock().unwrap().insert(handle.node.chain_spec().chain.id(), handle.node.provider.clone());
+
+        handle.wait_for_node_exit().await
     })
 }
 

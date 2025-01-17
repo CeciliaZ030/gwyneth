@@ -68,6 +68,7 @@ tracing.workspace = true
 jsonrpsee.workspace = true
 revm.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
+bincode.workspace = true
 
 # alloy
 alloy-sol-types = { workspace = true, features = ["json"] }

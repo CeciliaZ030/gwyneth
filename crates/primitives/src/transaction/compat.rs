@@ -4,6 +4,11 @@ use revm_primitives::{AuthorizationList, ChainAddress, TransactTo, TxEnv, TxKind
 #[cfg(all(not(feature = "std"), feature = "optimism"))]
 use alloc::vec::Vec;
 
+// Hard code for now.
+const BASE_CHAIN_ID: u64 = 167010; // Low level crate, should not depend on gwyneth but we need this info, just hard-code now!
+const NUM_L2_CHAINS: u64 = 2;
+const L1_CHAIN_ID: u64 = 160010;
+
 /// Implements behaviour to fill a [`TxEnv`] from another transaction.
 pub trait FillTxEnv {
     /// Fills [`TxEnv`] with an [`Address`] and transaction.
@@ -32,7 +37,7 @@ impl FillTxEnv for TransactionSigned {
                 tx_env.transact_to = convert_tx_kind(chain_id, tx.to);
                 tx_env.value = tx.value;
                 tx_env.data = tx.input.clone();
-                tx_env.chain_id = tx.chain_id;
+                tx_env.chain_ids = chain_ids;
                 tx_env.nonce = Some(tx.nonce);
                 tx_env.access_list.clear();
                 tx_env.blob_hashes.clear();
@@ -46,7 +51,7 @@ impl FillTxEnv for TransactionSigned {
                 tx_env.transact_to = convert_tx_kind(chain_id, tx.to);
                 tx_env.value = tx.value;
                 tx_env.data = tx.input.clone();
-                tx_env.chain_id = Some(tx.chain_id);
+                tx_env.chain_ids = chain_ids;
                 tx_env.nonce = Some(tx.nonce);
                 tx_env.access_list.clone_from(&tx.access_list.0);
                 tx_env.blob_hashes.clear();
@@ -60,7 +65,7 @@ impl FillTxEnv for TransactionSigned {
                 tx_env.transact_to = convert_tx_kind(chain_id, tx.to);
                 tx_env.value = tx.value;
                 tx_env.data = tx.input.clone();
-                tx_env.chain_id = Some(tx.chain_id);
+                tx_env.chain_ids = chain_ids;
                 tx_env.nonce = Some(tx.nonce);
                 tx_env.access_list.clone_from(&tx.access_list.0);
                 tx_env.blob_hashes.clear();
@@ -74,7 +79,7 @@ impl FillTxEnv for TransactionSigned {
                 tx_env.transact_to = TransactTo::Call(ChainAddress(chain_id, tx.to));
                 tx_env.value = tx.value;
                 tx_env.data = tx.input.clone();
-                tx_env.chain_id = Some(tx.chain_id);
+                tx_env.chain_ids = chain_ids;
                 tx_env.nonce = Some(tx.nonce);
                 tx_env.access_list.clone_from(&tx.access_list.0);
                 tx_env.blob_hashes.clone_from(&tx.blob_versioned_hashes);
@@ -88,7 +93,7 @@ impl FillTxEnv for TransactionSigned {
                 tx_env.transact_to = convert_tx_kind(chain_id, tx.to);
                 tx_env.value = tx.value;
                 tx_env.data = tx.input.clone();
-                tx_env.chain_id = Some(tx.chain_id);
+                tx_env.chain_ids = chain_ids;
                 tx_env.nonce = Some(tx.nonce);
                 tx_env.access_list.clone_from(&tx.access_list.0);
                 tx_env.blob_hashes.clear();
