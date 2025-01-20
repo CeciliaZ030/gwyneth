@@ -2,9 +2,7 @@ use std::{collections::HashMap, marker::PhantomData, sync::{Arc, RwLock}, time::
 
 use alloy_rlp::Decodable;
 use alloy_sol_types::{sol, SolEventInterface};
-use reth_chainspec::Head;
-use reth_rpc_builder::auth::AuthServerHandle;
-use tokio::time::sleep;
+use reth_chainspec::EthChainSpec;
 
 use crate::{
     engine_api::EngineApiContext, GwynethEngineTypes, GwynethNode, GwynethPayloadAttributes,
@@ -21,22 +19,40 @@ use reth_node_api::{
 };
 use reth_node_builder::{components::Components, FullNode, NodeAdapter, NodeComponents};
 use reth_node_ethereum::{node::EthereumAddOns, EthExecutorProvider};
-use reth_payload_builder::{EthBuiltPayload, PayloadBuilderHandle};
-use reth_primitives::{
-    ChainDA, GwynethDA, StateDiff,
-    address, Address, Header, SealedBlock, SealedBlockWithSenders, SealedHeader, TransactionSigned, B256, U256
-};
+use reth_payload_builder::EthBuiltPayload;
 use reth_provider::{
     BlockNumReader,
     providers::BlockchainProvider, CanonStateSubscriptions, DatabaseProviderFactory,
 };
-use reth_rpc_types::{engine::PayloadStatusEnum, BlockNumberOrTag};
 use reth_transaction_pool::{
     blobstore::DiskFileBlobStore, CoinbaseTipOrdering, EthPooledTransaction,
     EthTransactionValidator, Pool, TransactionValidationTaskExecutor,
 };
 use RollupContract::{BlockProposed, RollupContractEvents};
 use reth_provider::BlockReaderIdExt;
+use alloy_primitives::{address, b256, Address, BlockNumber, B256, Bytes, U256};
+use reth_node_core::primitives::TransactionSigned;
+use reth_primitives::{ChainDA, GwynethDA, SealedBlock, SealedBlockWithSenders};
+use alloy_rpc_types_engine::PayloadStatusEnum;
+use reth_node_builder::rpc::RethRpcAddOns;
+use tracing::info;
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
+use reth_node_builder::rpc::EngineValidatorBuilder;
+use reth_node_api::PayloadBuilder;
+use reth_node_api::FullNodeComponents;
+use reth_node_api::NodeTypesWithDBAdapter;
+use reth_node_ethereum::BasicBlockExecutorProvider;
+use reth_evm_ethereum::execute::EthExecutionStrategyFactory;
+use futures_util::TryStreamExt;
+use futures_util::FutureExt;
+use reth_node_api::NodeTypes;
+use reth_primitives::EthPrimitives;
+use reth_payload_builder::EthPayloadBuilderAttributes;
+use reth_node_ethereum::EthEngineTypes;
 
 const ROLLUP_CONTRACT_ADDRESS: Address = address!("9fCF7D13d10dEdF17d0f24C62f0cf4ED462f65b7");
 pub const BASE_CHAIN_ID: u64 = 167010;
@@ -97,6 +113,68 @@ type GwynethFullNode2 = FullNode<
 >;
 
 sol!(RollupContract, "TaikoL1.json");
+
+pub enum GwynethFullNode {
+    Provider1(GwynethFullNode1),
+    Provider2(GwynethFullNode2),
+}
+
+impl GwynethFullNode {
+    pub fn chain_id(&self) -> u64{
+        match self {
+            GwynethFullNode::Provider1(node) => (node.chain_spec().chain().id()),
+            GwynethFullNode::Provider2(node) => (node.chain_spec().chain().id()),
+        }
+    }
+
+    pub fn payload_builder(&self) -> &PayloadBuilderHandle<GwynethEngineTypes> {
+        match self {
+            GwynethFullNode::Provider1(node) => &node.payload_builder,
+            GwynethFullNode::Provider2(node) => &node.payload_builder,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct L1ParentState {
+    pub block_number: u64,
+    // None at launch
+    pub header: Option<SealedHeader>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct L1ParentStates(Arc<HashMap<u64, RwLock<L1ParentState>>>);
+
+impl L1ParentStates {
+    pub fn new(nodes: &Vec<GwynethFullNode>) -> Self {
+        let states = nodes.iter().map(|node| {
+            let chain_id = node.chain_id();
+            let state = RwLock::new(L1ParentState {block_number: 0, header: None});
+            (chain_id, state)
+        }).collect::<HashMap<_, _>>();
+        L1ParentStates(Arc::new(states))
+    }
+
+    pub fn get(&self, chain_id: u64) -> (u64, Option<SealedHeader>) {
+        let state = self.0
+            .get(&chain_id)
+            .expect("L1ParentStates: chain_id not found")
+            .read()
+            .expect("L1ParentStates lock poisoned");
+        (state.block_number, state.header.clone())
+    }
+
+    pub async fn update (&self, block: &SealedBlockWithSenders, chain_id: u64) -> eyre::Result<()> {
+        let mut state = self.0
+            .get(&chain_id)
+            .expect("L1ParentStates: chain_id not found")
+            .write()
+            .expect("L1ParentStates lock poisoned");
+        state.block_number = block.number;
+        state.header = Some(block.header.clone());
+        Ok(())
+    }
+}
 
 pub enum GwynethFullNode {
     Provider1(GwynethFullNode1),
@@ -290,17 +368,21 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     gas_limit: None,
                 };
 
-                let l1_state_provider = self
-                    .ctx
-                    .provider()
-                    .database_provider_ro()
-                    .unwrap()
-                    .state_provider_by_block_number(block.number)
-                    .unwrap();
+                // let l1_state_provider = self
+                //     .ctx
+                //     .provider()
+                //     .database_provider_ro()
+                //     .unwrap()
+                //     .state_provider_by_block_number(block.number)
+                //     .unwrap();
 
                 let mut builder_attrs =
-                    GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs).unwrap();
-                builder_attrs.providers.insert(self.ctx.config.chain.chain().id(), Arc::new(l1_state_provider));
+                    GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs, 0).unwrap();
+
+
+                let mut builder_attrs = EthPayloadBuilderAttributes::default();
+
+                //builder_attrs.providers.insert(self.ctx.config.chain.chain_id(), Arc::new(l1_state_provider));
 
                 // Add all other L2 dbs for now as well until dependencies are broken
                 // for node in self.nodes.iter() {
@@ -323,9 +405,12 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 //     }
                 // }
 
-                let payload_id = builder_attrs.inner.payload_id();
+                //let payload_id = builder_attrs.inner.payload_id();
+                // let parrent_beacon_block_root =
+                //     builder_attrs.inner.parent_beacon_block_root.unwrap();
+                let payload_id = builder_attrs.payload_id();
                 let parrent_beacon_block_root =
-                    builder_attrs.inner.parent_beacon_block_root.unwrap();
+                    builder_attrs.parent_beacon_block_root.unwrap();
 
                 println!("👛 Exex: sending payload_id: {:?}\n tx {:?}", payload_id, builder_attrs.transactions.len());
 
@@ -338,44 +423,43 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 loop {
                     let result = node.payload_builder().best_payload(payload_id).await;
 
-                    if let Some(result) = result {
-                        if let Ok(new_payload) = result {
-                            payload = new_payload;
-                            if payload.block().body.is_empty() {
-                                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-                                continue;
-                            }
-                        } else {
-                            println!("Gwyneth: No payload?");
-                            continue;
-                        }
-                    } else {
-                        println!("Gwyneth: No block for {}?", node_chain_id);
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        continue;
-                    }
-                    break;
-                }
-
-                //tokio::time::sleep(std::time::Duration::from_millis(10000)).await;
+                //     if let Some(result) = result {
+                //         if let Ok(new_payload) = result {
+                //             payload = new_payload;
+                //             // TODO(Brecht): ah no empty blocks
+                //             // if payload.block().body.is_empty() {
+                //             //     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                //             //     continue;
+                //             // }
+                //         } else {
+                //             println!("Gwyneth: No payload?");
+                //             continue;
+                //         }
+                //     } else {
+                //         println!("Gwyneth: No block for {}?", node_chain_id);
+                //         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                //         continue;
+                //     }
+                //     break;
+                // }
 
                 // trigger resolve payload via engine api
-                self.engine_apis[node_idx].get_payload_v3_value(payload_id).await?;
+                // self.engine_apis[node_idx].get_payload_v3_value(payload_id).await?;
 
-                // submit payload to engine api
-                let block_hash = self.engine_apis[node_idx]
-                    .submit_payload(
-                        payload.clone(),
-                        parrent_beacon_block_root,
-                        PayloadStatusEnum::Valid,
-                        vec![],
-                    )
-                    .await?;
+                // // submit payload to engine api
+                // let block_hash = self.engine_apis[node_idx]
+                //     .submit_payload(
+                //         payload.clone(),
+                //         parrent_beacon_block_root,
+                //         PayloadStatusEnum::Valid,
+                //         vec![],
+                //     )
+                //     .await?;
 
 
-                if chain_da.block_hash != B256::ZERO {
-                    assert_eq!(block_hash, chain_da.block_hash, "unexpected block hash for chain {} block {}", node_chain_id, payload.block().number);
-                }
+                // if chain_da.block_hash != B256::ZERO {
+                //     assert_eq!(block_hash, chain_da.block_hash, "unexpected block hash for chain {} block {}", node_chain_id, payload.block().number);
+                // }
 
                 // trigger forkchoice update via engine api to commit the block to the blockchain
                 self.engine_apis[node_idx].update_forkchoice(block_hash, block_hash).await?;
@@ -392,6 +476,65 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
     }
 }
 
+// impl<Node: FullNodeComponents> Future for Rollup<Node> {
+//     type Output = eyre::Result<()>;
+
+//     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+//         let this = self.get_mut();
+
+//         while let Some(notification) = ready!(this.ctx.notifications.try_next().poll_unpin(cx))? {
+//             if let Some(reverted_chain) = notification.reverted_chain() {
+//                 this.revert(&reverted_chain)?;
+//             }
+
+//             if let Some(committed_chain) = notification.committed_chain() {
+//                 println!("EXEX called for block {}", committed_chain.tip().number);
+//                 for i in 0..this.nodes.len() {
+//                     this.commit(&committed_chain, i)?;
+//                 }
+//                 this.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().num_hash()))?;
+//             }
+
+//             // if let Some(first_block) = this.first_block {
+//             //     info!(%first_block, transactions = %this.transactions, "Total number of transactions");
+//             // }
+//         }
+
+//         Poll::Ready(Ok(()))
+//     }
+// }
+
+impl<Node> Rollup<Node>
+where
+    Node: FullNodeComponents<Types: NodeTypes<Primitives = EthPrimitives>>,
+{
+    // fn new(ctx: ExExContext<Node>, connection: Connection) -> eyre::Result<Self> {
+    //     let db = Database::new(connection)?;
+    //     Ok(Self { ctx, db })
+    // }
+
+    pub async fn start(mut self) -> eyre::Result<()> {
+        // Process all new chain state notifications
+        while let Some(notification) = self.ctx.notifications.try_next().await? {
+            if let Some(reverted_chain) = notification.reverted_chain() {
+                self.revert(&reverted_chain)?;
+            }
+
+            if let Some(committed_chain) = notification.committed_chain() {
+                println!("EXEX called for block {}", committed_chain.tip().number);
+                for i in 0..self.nodes.len() {
+                    self.commit(&committed_chain, i).await?;
+                }
+                self.ctx
+                    .events
+                    .send(ExExEvent::FinishedHeight(committed_chain.tip().num_hash()))?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// Decode chain of blocks into a flattened list of receipt logs, filter only transactions to the
 /// Rollup contract [`ROLLUP_CONTRACT_ADDRESS`] and extract [`RollupContractEvents`].
 fn decode_chain_into_rollup_events(
@@ -404,6 +547,7 @@ fn decode_chain_into_rollup_events(
         .flat_map(|(block, receipts)| {
             block
                 .body
+                .transactions
                 .iter()
                 .zip(receipts.iter().flatten())
                 .map(move |(tx, receipt)| (block, tx, receipt))
