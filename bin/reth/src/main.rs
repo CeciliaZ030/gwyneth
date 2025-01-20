@@ -4,17 +4,19 @@
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr, sync::LazyLock};
 
 use alloy_network::{Ethereum, EthereumWallet, TransactionBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use jsonrpsee::{core::client::ClientT, rpc_params};
-use gwyneth::{cli::{create_gwyneth_nodes, GwynethArgs}, exex::L1ParentStates};
+use gwyneth::{cli::{create_gwyneth_nodes, GwynethArgs}, exex::{GwynethFullNode, L1ParentStates}};
 use reth_node_ethereum::EthereumNode;
 use reth_provider::NODES;
 use reth_primitives::{Address, B256, U256};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
 use alloy_network::eip2718::Encodable2718;
+
+static NODES__: LazyLock<HashMap<u64, GwynethFullNode>> = LazyLock::new(|| HashMap::new());
 
 fn main() -> eyre::Result<()> {
     println!("WTF");
@@ -25,6 +27,7 @@ fn main() -> eyre::Result<()> {
             builder.task_executor().clone(),
             builder.config()
         ).await;
+        
         let l1_parents = L1ParentStates::new(&gwyneth_nodes);
         
         let handle = builder

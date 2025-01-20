@@ -71,7 +71,9 @@ pub(crate) fn to_range<R: std::ops::RangeBounds<u64>>(bounds: R) -> std::ops::Ra
 // pub static NODES: LazyLock<Mutex<HashMap<u64, ProviderFactory<DatabaseEnv>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 // pub static NODES: LazyLock<Mutex<HashMap<u64, ProviderFactory<BlockchainProvider<Arc<TempDatabase<DatabaseEnv>>>>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
-
+pub static NODES_: LazyLock<SyncStateProviderDatabase<Box<dyn StateProvider>>> = LazyLock::new(|| {
+    SyncStateProviderDatabase::new(Box::new_uninit())
+});
 pub static NODES: LazyLock<Mutex<HashMap<u64, BlockchainProvider<Arc<DatabaseEnv>>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 //pub static NODES: LazyLock<Mutex<HashMap<u64, ProviderFactory<Arc<DatabaseEnv>>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 

@@ -23,10 +23,15 @@ impl FillTxEnv for TransactionSigned {
             self.encode_enveloped(&mut envelope);
             envelope
         };
-
-        let chain_id = self.transaction.chain_id().unwrap_or_else(|| {
-            tx_env.chain_id.expect(&format!("chain_id is None for Tx {:?}", &self))
-        });
+        let chain_ids = Some(std::iter::once(L1_CHAIN_ID)
+        .chain((0..NUM_L2_CHAINS)
+        .map(|i| BASE_CHAIN_ID + i))
+        .collect::<Vec<u64>>());
+        
+        let chain_id = self
+        .transaction
+        .chain_id()
+        .unwrap_or_else(|| chain_ids.as_ref().map(|ids| ids[0]).unwrap_or(BASE_CHAIN_ID));
 
         tx_env.caller = ChainAddress(chain_id, sender);
         match self.as_ref() {
