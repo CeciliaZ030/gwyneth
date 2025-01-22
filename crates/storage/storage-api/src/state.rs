@@ -1,3 +1,5 @@
+use crate::BlockNumReader;
+
 use super::{
     AccountReader, BlockHashReader, BlockIdReader, StateProofProvider, StateRootProvider,
     StorageRootProvider,

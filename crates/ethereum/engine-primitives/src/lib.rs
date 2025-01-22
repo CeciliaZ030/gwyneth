@@ -35,7 +35,7 @@ impl<T: PayloadTypes> PayloadTypes for EthEngineTypes<T> {
     type PayloadAttributes = T::PayloadAttributes;
     type PayloadBuilderAttributes = T::PayloadBuilderAttributes;
 
-    type SyncProvider = ();
+    // type SyncProvider = ();
 }
 
 impl<T: PayloadTypes> EngineTypes for EthEngineTypes<T>
@@ -61,7 +61,7 @@ impl PayloadTypes for EthPayloadTypes {
     type PayloadAttributes = EthPayloadAttributes;
     type PayloadBuilderAttributes = EthPayloadBuilderAttributes;
     //#[cfg(feature = "gwyneth")]
-    type SyncProvider = ();
+    // type SyncProvider = ();
 }
 
 /// Validator for the ethereum engine API.
