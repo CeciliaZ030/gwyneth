@@ -258,7 +258,6 @@ where
             consensus_engine_tx,
             Box::pin(consensus_engine_stream),
             hooks,
-            exex_manager_handle,
             ctx.node_config().builder.ignore_payload,
         )?;
         info!(target: "reth::cli", "Consensus engine initialized");

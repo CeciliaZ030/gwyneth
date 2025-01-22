@@ -1,6 +1,6 @@
 use crate::{exex::GwynethFullNode, GwynethNode};
 use clap::Args;
-use reth_chainspec::{Chain, ChainSpecBuilder};
+use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use reth_db::{
     init_db,
     mdbx::{DatabaseArguments, MaxReadTransactionDuration},
@@ -12,8 +12,7 @@ use reth_node_builder::{
 };
 use reth_node_core::{
     args::{
-        DiscoveryArgs, NetworkArgs,
-         RpcServerArgs,
+        DatadirArgs, DiscoveryArgs, NetworkArgs, RpcServerArgs
     },
     dirs::{DataDirPath, MaybePlatformPath},
     node_config::NodeConfig,
@@ -58,7 +57,7 @@ pub struct GwynethArgs {
 
 impl GwynethArgs {
     /// Build node configs for Gwyneth nodes
-    pub fn build_node_configs(&self, l1_node_config: &NodeConfig) -> Vec<NodeConfig> {
+    pub fn build_node_configs(&self, l1_node_config: &NodeConfig<ChainSpec>) -> Vec<NodeConfig<ChainSpec>> {
         assert_eq!(self.chain_ids.len(), self.datadirs.len());
         let mut network_config = NetworkArgs {
             // No p2p btw gwyneth nodes for now, otherwise we have one p2p instance per chain
@@ -108,10 +107,44 @@ impl GwynethArgs {
                     .with_chain(chain_spec.clone())
                     .with_network(network_config.clone())
                     .with_rpc(rpc)
+                    .with_datadir_args(DatadirArgs {
+                        datadir: MaybePlatformPath::from(self.datadirs[idx].clone()),
+                        ..Default::default()
+                    })
             })
             .collect::<Vec<_>>();
         node_configs
     }
+
+    async fn can_run_dev_node() -> eyre::Result<()> {
+        reth_tracing::init_test_tracing();
+        let tasks = TaskManager::current();
+        let exec = tasks.executor();
+    
+        let node_config = NodeConfig::test()
+            .with_chain(custom_chain())
+            .with_dev(DevArgs { dev: true, ..Default::default() });
+        let NodeHandle { node, .. } = NodeBuilder::new(node_config.clone())
+            .testing_node(exec.clone())
+            .with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
+            .with_components(::components())
+            .with_add_ons(EthereumAddOns::default())
+            .launch_with_fn(|builder| {
+                let b = builder.clone();
+                let launcher = EngineNodeLauncher::new(
+                    builder.task_executor().clone(),
+                    builder.config().datadir(),
+                    Default::default(),
+                );
+                builder.launch_with(launcher)
+            })
+            .await?;
+    
+        assert_chain_advances(node).await;
+    
+        Ok(())
+    }
+
 
     /// Configure Gwyneth nodes with the given args and l1 node config
     pub async fn configure<F, Fut, N>(
@@ -121,41 +154,28 @@ impl GwynethArgs {
         f: F,
     ) -> Vec<N>
     where
-        F: Fn(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>>>) -> Fut,
+        F: FnOnce(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>, ChainSpec>>) -> Fut,
         Fut: Future<Output = eyre::Result<N>>,
     {
         let node_configs = self.build_node_configs(l1_node_config);
         let mut gwyneth_nodes = Vec::new();
 
-        for (datadir, mut node_config) in self.datadirs.iter().zip(node_configs.into_iter()) {
-            let path = MaybePlatformPath::<DataDirPath>::from(datadir.clone());
-            node_config = node_config.with_datadir_args(reth_node_core::args::DatadirArgs {
-                datadir: path.clone(),
-                ..Default::default()
-            });
-
-            let data_dir =
-                path.unwrap_or_chain_default(node_config.chain.chain, node_config.datadir.clone());
-
-            println!("data_dir: {:?}", data_dir);
-
+        for config in node_configs {
+            let data_dir = config.datadir();
+            let db_path = data_dir.db();
+    
+            tracing::info!(target: "reth::cli", path = ?db_path, "Opening database");
             let db = init_db(
                 data_dir,
                 DatabaseArguments::new(ClientVersion::default())
                     .with_max_read_transaction_duration(Some(
                         MaxReadTransactionDuration::Unbounded,
                     )),
-            )
-            .unwrap();
-
-            let builder = NodeBuilder::new(node_config.clone()).with_database(Arc::new(db));
-            let ctx = WithLaunchContext { builder, task_executor: exec.clone() };
-            println!(
-                "Gwyneth node {:?} launch with config: {:?}",
-                node_config.chain.chain.id(),
-                node_config.network
-            );
-            let node = f(ctx).await.unwrap();
+            )?;
+            let ctx = NodeBuilder::new(node_config)
+                .with_database(database)
+                .with_launch_context(exec.clone());
+            let node = f(ctx).await?;
             gwyneth_nodes.push(node);
         }
 
@@ -172,13 +192,17 @@ pub async fn create_gwyneth_nodes(
     if arg.experimental {
         // BlockchainProvider2
         arg.configure(l1_node_config, exec, |ctx| {
+            let n: WithLaunchContext<reth_node_builder::NodeBuilderWithTypes<reth_node_api::FullNodeTypesAdapter<reth_node_api::NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>, BlockchainProvider2<_>>>> = ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>();
+            let c = n.with_components(GwynethNode::components::<reth_node_builder::NodeBuilderWithTypes<reth_node_api::FullNodeTypesAdapter<reth_node_api::NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>>>>());
+            
             ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
-                .with_components(GwynethNode::default().components_builder())
+                .with_components(GwynethNode::components())
                 .with_add_ons::<EthereumAddOns>()
-                .launch_with_fn(|launch_ctx| {
+                .launch_with_fn(|launch_ctx| { 
                     let launcher = EngineNodeLauncher::new(
                         launch_ctx.task_executor.clone(),
                         launch_ctx.builder.config.datadir(),
+                        Default::default(),
                     );
                     launch_ctx.launch_with(launcher)
                 })

@@ -7,15 +7,14 @@ use jsonrpsee::{
 use reth_ethereum_engine_primitives::ExecutionPayloadEnvelopeV3;
 use reth_node_api::EngineTypes;
 use reth_payload_builder::PayloadId;
+use reth_primitives::B256;
 use reth_provider::CanonStateNotificationStream;
 use reth_rpc_api::EngineApiClient;
 use reth_rpc_layer::AuthClientService;
-use alloy_rpc_types_engine::{ForkchoiceState, PayloadStatusEnum};
-use std::{marker::PhantomData, net::Ipv4Addr};
-use reth_rpc_builder::constants;
-use alloy_primitives::{address, b256, Address, BlockNumber, B256, U256};
-use alloy_rpc_types_engine::ExecutionPayloadV3;
-
+use reth_rpc_types::{
+    engine::{ForkchoiceState, PayloadStatusEnum},
+    ExecutionPayloadV3,
+};
 /// Helper for engine api operations
 pub struct EngineApiContext<E> {
     pub canonical_stream: CanonStateNotificationStream,
@@ -28,7 +27,7 @@ impl<E: EngineTypes> EngineApiContext<E> {
     pub async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
-    ) -> eyre::Result<E::ExecutionPayloadEnvelopeV3> {
+    ) -> eyre::Result<E::ExecutionPayloadV3> {
         Ok(EngineApiClient::<E>::get_payload_v3(&self.engine_api_client, payload_id).await?)
     }
 
@@ -49,10 +48,10 @@ impl<E: EngineTypes> EngineApiContext<E> {
         versioned_hashes: Vec<B256>,
     ) -> eyre::Result<B256>
     where
-        E::ExecutionPayloadEnvelopeV3: From<E::BuiltPayload> + PayloadEnvelopeExt,
+        E::ExecutionPayloadV3: From<E::BuiltPayload> + PayloadEnvelopeExt,
     {
         // setup payload for submission
-        let envelope_v3: <E as EngineTypes>::ExecutionPayloadEnvelopeV3 = payload.into();
+        let envelope_v3: <E as EngineTypes>::ExecutionPayloadV3 = payload.into();
 
         // submit payload to engine api
         let submission = EngineApiClient::<E>::new_payload_v3(
@@ -111,25 +110,3 @@ impl PayloadEnvelopeExt for ExecutionPayloadEnvelopeV3 {
         self.execution_payload.clone()
     }
 }
-// pub trait RpcServerArgsExEx {
-//     fn with_static_l2_rpc_ip_and_port(self, chain_id: u64) -> Self;
-// }
-
-// use crate::exex::BASE_CHAIN_ID;
-
-// impl RpcServerArgsExEx for RpcServerArgs {
-//     fn with_static_l2_rpc_ip_and_port(mut self, chain_id: u64) -> Self {
-//         self.http = true;
-//         self.http_addr = Ipv4Addr::new(0, 0, 0, 0).into();
-
-//         // Calculate HTTP and WS ports based on chain_id
-//         let port_offset = (chain_id - BASE_CHAIN_ID) as u16;
-//         self.http_port = 10110 + (port_offset * 100);
-//         self.ws_port = 10111 + (port_offset * 100);
-
-//         // Set IPC path
-//         self.ipcpath = format!("{}-{}", constants::DEFAULT_IPC_ENDPOINT, chain_id);
-
-//         self
-//     }
-// }

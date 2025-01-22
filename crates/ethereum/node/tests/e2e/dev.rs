@@ -28,6 +28,7 @@ async fn can_run_dev_node() -> eyre::Result<()> {
         .with_components(EthereumNode::components())
         .with_add_ons(EthereumAddOns::default())
         .launch_with_fn(|builder| {
+            let b = builder.clone();
             let launcher = EngineNodeLauncher::new(
                 builder.task_executor().clone(),
                 builder.config().datadir(),

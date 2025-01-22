@@ -24,6 +24,8 @@ pub trait FullNodeTypes: Send + Sync + Unpin + 'static {
     type Types: NodeTypesWithDB + NodeTypesWithEngine;
     /// The provider type used to interact with the node.
     type Provider: FullProvider<Self::Types>;
+
+    // type SyncProvider;
 }
 
 /// An adapter type that adds the builtin provider type to the user configured node types.
@@ -42,6 +44,8 @@ where
 {
     type Types = Types;
     type Provider = Provider;
+    
+    // type SyncProvider = ();
 }
 
 /// Encapsulates all types and components of the node.

@@ -5,7 +5,7 @@ use alloy_primitives::{keccak256, Address, B256, U256};
 use alloy_rlp::Encodable;
 use alloy_trie::HashBuilder;
 use itertools::Itertools;
-use nybbles::Nibbles;
+use alloy_trie::Nibbles;
 
 /// Adjust the index of an item for rlp encoding.
 pub const fn adjust_index_for_rlp(i: usize, len: usize) -> usize {

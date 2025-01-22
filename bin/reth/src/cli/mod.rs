@@ -108,22 +108,6 @@ impl<C: ChainSpecParser<ChainSpec = ChainSpec>, Ext: clap::Args + fmt::Debug> Cl
 }
 
 impl<C: ChainSpecParser<ChainSpec = ChainSpec>, Ext: clap::Args + fmt::Debug> Cli<C, Ext> {
-    /// Parsers only the default CLI arguments
-    pub fn parse_args_l2() -> Self {
-        Self::parse()
-    }
-
-    /// Parsers only the default CLI arguments from the given iterator
-    pub fn try_parse_args_from_l2<I, T>(itr: I) -> Result<Self, clap::error::Error>
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<OsString> + Clone,
-    {
-        Self::try_parse_from(itr)
-    }
-}
-
-impl<C: ChainSpecParser<ChainSpec = ChainSpec>, Ext: clap::Args + fmt::Debug> Cli<C, Ext> {
     /// Execute the configured cli command.
     ///
     /// This accepts a closure that is used to launch the node via the
@@ -277,12 +261,12 @@ mod tests {
     use crate::args::ColorMode;
     use clap::CommandFactory;
     use reth_ethereum_cli::chainspec::SUPPORTED_CHAINS;
-    use gwyneth::cli::GwynethArgs;
+    // use gwyneth::cli::GwynethArgs;
 
     #[test]
     fn parse_color_mode() {
         let reth =
-            Cli::<NoArgs>::try_parse_args_from(["reth", "node", "--color", "always"]).unwrap();
+            Cli::<EthereumChainSpecParser, NoArgs>::try_parse_args_from(["reth", "node", "--color", "always"]).unwrap();
         assert_eq!(reth.logs.color, ColorMode::Always);
     }
 
@@ -293,7 +277,7 @@ mod tests {
     fn test_parse_help_all_subcommands() {
         let reth = Cli::<EthereumChainSpecParser, NoArgs>::command();
         for sub_command in reth.get_subcommands() {
-            let err = Cli::<NoArgs>::try_parse_args_from(["reth", sub_command.get_name(), "--help"])
+            let err = Cli::<EthereumChainSpecParser, NoArgs>::try_parse_args_from(["reth", sub_command.get_name(), "--help"])
                 .err()
                 .unwrap_or_else(|| {
                     panic!("Failed to parse help message {}", sub_command.get_name())
@@ -309,7 +293,7 @@ mod tests {
     /// name
     #[test]
     fn parse_logs_path() {
-        let mut reth = Cli::<NoArgs>::try_parse_args_from(["reth", "node"]).unwrap();
+        let mut reth = Cli::<EthereumChainSpecParser, NoArgs>::try_parse_args_from(["reth", "node"]).unwrap();
         reth.logs.log_file_directory =
             reth.logs.log_file_directory.join(reth.chain.chain.to_string());
         let log_dir = reth.logs.log_file_directory;
@@ -320,7 +304,7 @@ mod tests {
         iter.next();
         for chain in iter {
             let mut reth =
-                Cli::<NoArgs>::try_parse_args_from(["reth", "node", "--chain", chain]).unwrap();
+                Cli::<EthereumChainSpecParser, NoArgs>::try_parse_args_from(["reth", "node", "--chain", chain]).unwrap();
             reth.logs.log_file_directory =
                 reth.logs.log_file_directory.join(reth.chain.chain.to_string());
             let log_dir = reth.logs.log_file_directory;
@@ -334,7 +318,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
 
         std::env::set_var("RUST_LOG", "info,evm=debug");
-        let reth = Cli::<NoArgs>::try_parse_args_from([
+        let reth = Cli::<EthereumChainSpecParser, NoArgs>::try_parse_args_from([
             "reth",
             "init",
             "--datadir",
@@ -346,21 +330,21 @@ mod tests {
         assert!(reth.run(|_, _| async move { Ok(()) }).is_ok());
     }
 
-    #[test]
-    fn parse_l2_chains() {
-        let reth = Cli::<GwynethArgs>::try_parse_args_from_l2([
-            "reth",
-            "node",
-            "--l2.chain_ids",
-            "160010",
-            "160011",
-            "--l2.datadirs",
-            "path/one",
-            "path/two",
-            "--rbuilder.config",
-            "path/to/config",
-        ])
-        .unwrap();
-        assert!(reth.run(|_, _| async move { Ok(()) }).is_ok());
-    }
+    // #[test]
+    // fn parse_l2_chains() {
+    //     let reth = Cli::<GwynethArgs>::try_parse_args_from_l2([
+    //         "reth",
+    //         "node",
+    //         "--l2.chain_ids",
+    //         "160010",
+    //         "160011",
+    //         "--l2.datadirs",
+    //         "path/one",
+    //         "path/two",
+    //         "--rbuilder.config",
+    //         "path/to/config",
+    //     ])
+    //     .unwrap();
+    //     assert!(reth.run(|_, _| async move { Ok(()) }).is_ok());
+    // }
 }

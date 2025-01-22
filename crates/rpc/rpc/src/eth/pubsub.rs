@@ -78,7 +78,7 @@ impl<Provider, Pool, Events, Network, Eth> EthPubSub<Provider, Pool, Events, Net
     }
 }
 
-impl<Provider, Pool, Events, Network> EthPubSub<Provider, Pool, Events, Network>
+impl<Provider, Pool, Events, Network, Eth> EthPubSub<Provider, Pool, Events, Network, Eth>
 where
     Provider: BlockReader + EvmEnvProvider + Clone + 'static,
     Pool: TransactionPool + 'static,

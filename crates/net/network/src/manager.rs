@@ -259,7 +259,6 @@ impl<N: NetworkPrimitives> NetworkManager<N> {
 
         let event_sender: EventSender<NetworkEvent<PeerRequest<N>>> = Default::default();
 
-        println!("===> NetworkHandle::new {:?}", chain_spec.chain.id());
         let handle = NetworkHandle::new(
             Arc::clone(&num_active_peers),
             Arc::new(Mutex::new(listener_addr)),

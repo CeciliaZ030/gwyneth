@@ -50,7 +50,7 @@ where
     ) -> Result<PayloadStatus, BeaconOnNewPayloadError> {
         let (tx, rx) = oneshot::channel();
         println!("[reth] new_payload start {:?}", payload.block_number());
-        let _ = self.to_engine.send(BeaconEngineMessage::NewPayload { payload, cancun_fields, tx });
+        let _ = self.to_engine.send(BeaconEngineMessage::NewPayload { payload, sidecar, tx });
         let res = rx.await.map_err(|_| BeaconOnNewPayloadError::EngineUnavailable)?;
         println!("[reth] new_payload end");
         res

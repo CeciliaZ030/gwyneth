@@ -252,7 +252,7 @@ where
         pipeline_run_threshold: u64,
         hooks: EngineHooks,
         ignore_payload: bool,
-    ) -> RethResult<(Self, BeaconConsensusEngineHandle<EngineT>)> {
+    ) -> RethResult<(Self, BeaconConsensusEngineHandle<<N as NodeTypesWithEngine>::Engine>)> {
         let (to_engine, rx) = mpsc::unbounded_channel();
         Self::with_channel(
             client,
@@ -267,7 +267,6 @@ where
             to_engine,
             Box::pin(UnboundedReceiverStream::from(rx)),
             hooks,
-            None,
             ignore_payload,
         )
     }
@@ -299,9 +298,8 @@ where
         to_engine: UnboundedSender<BeaconEngineMessage<N::Engine>>,
         engine_message_stream: BoxStream<'static, BeaconEngineMessage<N::Engine>>,
         hooks: EngineHooks,
-        exex_handle: Option<reth_exex::ExExManagerHandle>,
         ignore_payload: bool,
-    ) -> RethResult<(Self, BeaconConsensusEngineHandle<EngineT>)> {
+    ) -> RethResult<(Self, BeaconConsensusEngineHandle<<N as NodeTypesWithEngine>::Engine>)> {
         let event_sender = EventSender::default();
         let handle = BeaconConsensusEngineHandle::new(to_engine, event_sender.clone());
         let sync = EngineSyncController::new(
@@ -1874,7 +1872,7 @@ where
                 // sensitive, hence they are polled first.
                 if let Poll::Ready(Some(msg)) = this.engine_message_stream.poll_next_unpin(cx) {
                     match msg {
-                        BeaconEngineMessage::ForkchoiceUpdated { state, payload_attrs, tx } => {
+                        BeaconEngineMessage::ForkchoiceUpdated { state, payload_attrs, version, tx } => {
                             use crate::engine::PayloadAttributes;
                             println!(
                                 "[reth] BeaconConsensusEngine:ForkchoiceUpdated 🎄 {:?} {:?}", 
@@ -1883,12 +1881,12 @@ where
                             );
                             this.on_forkchoice_updated(state, payload_attrs, tx);
                         }
-                        BeaconEngineMessage::NewPayload { payload, cancun_fields, tx } => {
+                        BeaconEngineMessage::NewPayload { payload, sidecar, tx} => {
                             println!(
                                 "[reth] BeaconConsensusEngine:on_new_payload 🎄 {:?}",
                                 payload.block_hash()
                             );
-                            match this.on_new_payload(payload, cancun_fields) {
+                            match this.on_new_payload(payload, sidecar) {
                                 Ok(Either::Right(block)) => {
                                     this.set_blockchain_tree_action(
                                         BlockchainTreeAction::InsertNewPayload { block, tx },

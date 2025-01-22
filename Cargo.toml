@@ -10,7 +10,7 @@ exclude = [".github/"]
 [workspace]
 members = [
     "bin/reth-bench/",
-    "bin/reth/",
+    # "bin/reth/",
     "crates/blockchain-tree-api/",
     "crates/blockchain-tree/",
     "crates/chain-state/",
@@ -148,7 +148,8 @@ members = [
     "examples/txpool-tracing/",
     "examples/custom-beacon-withdrawals",
     "testing/ef-tests/",
-    "testing/testing-utils", "crates/gwyneth",
+    "testing/testing-utils", "bin/reth", "crates/gwyneth", 
+    # "crates/gwyneth",
 ]
 default-members = ["bin/reth"]
 exclude = ["book/sources"]
@@ -299,7 +300,7 @@ codegen-units = 1
 overflow-checks = true
 
 [workspace.dependencies]
-gwyneth = { path = "crates/gwyneth" }
+# gwyneth = { path = "crates/gwyneth" }
 
 # reth
 op-reth = { path = "crates/optimism/bin" }
@@ -507,7 +508,7 @@ modular-bitfield = "0.11.2"
 notify = { version = "6.1.1", default-features = false, features = [
     "macos_fsevent",
 ] }
-nybbles = "0.2.1"
+nybbles = "0.3.4"
 once_cell = { version = "1.19", default-features = false, features = [
     "critical-section",
 ] }

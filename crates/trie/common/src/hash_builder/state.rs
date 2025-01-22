@@ -1,7 +1,7 @@
 use crate::TrieMask;
 use alloy_trie::{hash_builder::HashBuilderValue, nodes::RlpNode, HashBuilder};
 use bytes::Buf;
-use nybbles::Nibbles;
+use alloy_trie::Nibbles;
 use reth_codecs::Compact;
 use serde::{Deserialize, Serialize};
 

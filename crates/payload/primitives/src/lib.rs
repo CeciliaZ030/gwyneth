@@ -35,9 +35,8 @@ pub trait PayloadTypes: Send + Sync + Unpin + core::fmt::Debug + Clone + 'static
         + Clone
         + Unpin;
 
-    //#[cfg(feature = "gwyneth")]
     // Access L1 read-only state provider, in particular Arc<Box<dyn StateProvider>>
-    //type SyncProvider;
+    type SyncProvider;
 }
 
 /// Validates the timestamp depending on the version called:

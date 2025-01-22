@@ -3,7 +3,7 @@ use derive_more::Deref;
 use reth_codecs::Compact;
 use serde::{Deserialize, Serialize};
 
-pub use nybbles::Nibbles;
+pub use alloy_trie::Nibbles;
 
 /// The representation of nibbles of the merkle trie stored in the database.
 #[derive(

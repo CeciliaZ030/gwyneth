@@ -33,7 +33,7 @@ async fn main() -> eyre::Result<()> {
         .node(EthereumNode::default())
         .launch()
         .await?;
-
+    let n = node.clone();
     let mut notifications = node.provider.canonical_state_stream();
 
     // submit tx through rpc
