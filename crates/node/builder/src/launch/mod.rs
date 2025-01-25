@@ -96,6 +96,23 @@ impl DefaultNodeLauncher {
     }
 }
 
+// impl<Types, T, CB> LaunchNode<NodeBuilderWithComponents<T, CB, ()>> for DefaultNodeLauncher
+// where
+//     Types: NodeTypesWithDB<ChainSpec: EthereumHardforks + EthChainSpec> + NodeTypesWithEngine,
+//     T: FullNodeTypes<Provider = BlockchainProvider<Types>, Types = Types>,
+//     CB: NodeComponentsBuilder<T>,
+// {
+//     type Node = NodeHandle<NodeAdapter<T, CB::Components>, ()>;
+
+//     async fn launch_node(
+//         self,
+//         mut target: NodeBuilderWithComponents<T, CB, ()>,
+//     ) -> eyre::Result<Self::Node> {
+//         target.add_ons = AddOns::default();
+//         self.launch_node(target).await
+//     }
+// }
+
 impl<Types, T, CB, AO> LaunchNode<NodeBuilderWithComponents<T, CB, AO>> for DefaultNodeLauncher
 where
     Types: NodeTypesWithDB<ChainSpec: EthereumHardforks + EthChainSpec> + NodeTypesWithEngine,

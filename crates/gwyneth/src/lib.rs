@@ -1,23 +1,25 @@
 use alloy_eips::eip4895::{Withdrawal, Withdrawals};
 use builder::default_gwyneth_payload;
+use eyre::Chain;
 use reth_basic_payload_builder::{BasicPayloadJobGenerator, BuildArguments, BuildOutcome, PayloadBuilder, PayloadConfig};
 use reth_chainspec::ChainSpec;
 use reth_ethereum_engine_primitives::{
-    EthPayloadAttributes, ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3,
-    ExecutionPayloadEnvelopeV4, ExecutionPayloadV1,
+    EthPayloadAttributes, EthereumEngineValidator, ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4, ExecutionPayloadV1
 };
 use reth_ethereum_payload_builder::EthereumPayloadBuilder;
 use reth_evm::{ConfigureEvm, NextBlockEnvAttributes};
 use reth_evm_ethereum::EthEvmConfig;
+use reth_network::NetworkHandle;
 use reth_node_api::{
-    EngineTypes, FullNodeTypes, NodeTypes, NodeTypesWithEngine, PayloadAttributes, PayloadBuilderAttributes, PayloadBuilderError, PayloadTypes
+    validate_version_specific_fields, AddOnsContext, EngineApiMessageVersion, EngineObjectValidationError, EngineTypes, EngineValidator, FullNodeComponents, FullNodeTypes, NodeAddOns, NodeTypes, NodeTypesWithDB, NodeTypesWithEngine, PayloadAttributes, PayloadBuilderAttributes, PayloadBuilderError, PayloadOrAttributes, PayloadTypes
 };
-use reth_node_builder::{components::{ComponentsBuilder, PayloadServiceBuilder}, BuilderContext};
-use reth_node_ethereum::node::{EthereumConsensusBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder, EthereumPoolBuilder};
+use reth_node_builder::{components::{ComponentsBuilder, PayloadServiceBuilder}, rpc::{EngineValidatorBuilder, RethRpcAddOns, RpcAddOns, RpcHandle}, BuilderContext, Node, NodeAdapter, NodeComponentsBuilder};
+use reth_node_ethereum::{node::{EthereumAddOns, EthereumConsensusBuilder, EthereumEngineValidatorBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder, EthereumPoolBuilder}, BasicBlockExecutorProvider, EthExecutionStrategyFactory};
 use reth_payload_builder::{EthBuiltPayload, EthPayloadBuilderAttributes, PayloadBuilderHandle, PayloadBuilderService, PayloadId};
 use reth_primitives::{transaction::WithEncoded, TransactionSigned};
 use reth_provider::{ChainSpecProvider, StateProviderBox, StateProviderFactory};
-use reth_transaction_pool::{noop::NoopTransactionPool, TransactionPool};
+use reth_rpc::{eth::EthereumEthApiTypes, EthApi};
+use reth_transaction_pool::{blobstore::DiskFileBlobStore, noop::NoopTransactionPool, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, TransactionPool, TransactionValidationTaskExecutor};
 use reth_trie_db::MerklePatriciaTrie;
 use reth_chain_state::CanonStateSubscriptions;
 use reth_node_builder::PayloadBuilderConfig;
@@ -29,6 +31,9 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 pub mod builder;
+pub mod exex;
+pub mod cli;
+pub mod rpc;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -152,14 +157,6 @@ impl EngineTypes for GwynethEngineTypes {
 #[non_exhaustive]
 pub struct GwynethNode;
 
-impl NodeTypes for GwynethNode {
-    type Primitives = ();
-    // use ethereum chain spec
-    type ChainSpec = ChainSpec;
-    // use the Gwyneth engine types
-    type StateCommitment = MerklePatriciaTrie;
-}
-
 impl GwynethNode {
     /// Returns a [`ComponentsBuilder`] configured for a regular Ethereum node.
     pub fn components<Node>() -> ComponentsBuilder<
@@ -187,6 +184,81 @@ impl GwynethNode {
             .consensus(EthereumConsensusBuilder::default())
     }
 }
+
+
+// pub struct GwynethAddOns<N>(RpcAddOns<
+//     N,
+//     EthApi<
+//         <N as FullNodeTypes>::Provider,
+//         <N as FullNodeComponents>::Pool,
+//         NetworkHandle,
+//         <N as FullNodeComponents>::Evm,
+//     >,
+//     GwynethEngineValidatorBuilder,
+// >);
+
+// impl<N> NodeAddOns<N> for GwynethAddOns<N>
+// where
+//     N: FullNodeComponents<
+//         Types: NodeTypes<ChainSpec = OpChainSpec>,
+//         PayloadBuilder: PayloadBuilder<PayloadType = <N::Types as NodeTypesWithEngine>::Engine>,
+//     >,
+//     EthereumEngineValidator: EngineValidator<<N::Types as NodeTypesWithEngine>::Engine>,
+// {
+//     type Handle = RpcHandle<N, EthApi<N>>;
+
+//     async fn launch_add_ons(
+//         self,
+//         ctx: reth_node_api::AddOnsContext<'_, N>,
+//     ) -> eyre::Result<Self::Handle> {
+//         // install additional OP specific rpc methods
+//         self.0.launch_add_ons_with(ctx, |_| Ok(())).await
+
+//     }
+// }
+
+impl<N> Node<N> for GwynethNode
+where
+    N: FullNodeTypes<Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>>,
+    // GwynethEngineValidatorBuilder: EngineValidatorBuilder<NodeAdapter<N, reth_node_builder::components::Components<N, reth_transaction_pool::Pool<TransactionValidationTaskExecutor<EthTransactionValidator<<N as FullNodeTypes>::Provider, EthPooledTransaction>>, CoinbaseTipOrdering<EthPooledTransaction>, DiskFileBlobStore>, EthEvmConfig, BasicBlockExecutorProvider<EthExecutionStrategyFactory>, Arc<(dyn reth_consensus::Consensus + 'static)>>>>
+{
+    type ComponentsBuilder = ComponentsBuilder<
+        N,
+        EthereumPoolBuilder,
+        GwynethPayloadService,
+        EthereumNetworkBuilder,
+        EthereumExecutorBuilder,
+        EthereumConsensusBuilder,
+    >;
+    type AddOns = ();
+
+    fn components_builder(&self) -> Self::ComponentsBuilder {
+        ComponentsBuilder::default()
+            .node_types::<N>()
+            .pool(EthereumPoolBuilder::default())
+            .payload(GwynethPayloadService::default())
+            .network(EthereumNetworkBuilder::default())
+            .executor(EthereumExecutorBuilder::default())
+            .consensus(EthereumConsensusBuilder::default())
+    }
+
+    fn add_ons(&self) -> Self::AddOns {
+        ()
+    }
+}
+
+impl NodeTypes for GwynethNode {
+    type Primitives = ();
+    // use ethereum chain spec
+    type ChainSpec = ChainSpec;
+    // use the Gwyneth engine types
+    type StateCommitment = MerklePatriciaTrie;
+}
+
+impl NodeTypesWithEngine for GwynethNode {
+    type Engine = GwynethEngineTypes;
+}
+
 
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
@@ -341,6 +413,76 @@ where
 }
 
 
+// /// Add-ons w.r.t. optimism.
+// #[derive(Debug)]
+// pub struct GwynethAddOns<N: FullNodeComponents>(pub RpcAddOns<N, EthereumEthApiTypes, EthereumEngineValidatorBuilder>);
+
+// impl<N: FullNodeComponents> Default for GwynethAddOns<N> {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
+
+// impl<N: FullNodeComponents> GwynethAddOns<N> {
+//     /// Create a new instance with the given `sequencer_http` URL.
+//     pub fn new() -> Self {
+//         Self(RpcAddOns::new(
+//             move |ctx| EthereumEthApiTypes::default(), 
+//             EthereumEngineValidatorBuilder::default()
+//         ))
+//     }
+// }
+
+// impl<N> NodeAddOns<N> for GwynethAddOns<N>
+// where
+//     N: FullNodeComponents<
+//         Types: NodeTypes<ChainSpec = ChainSpec>,
+//         PayloadBuilder: reth_payload_builder_primitives::traits::PayloadBuilder<PayloadType = <N::Types as NodeTypesWithEngine>::Engine>,
+//     >,
+//     EthereumEngineValidator: EngineValidator<<N::Types as NodeTypesWithEngine>::Engine>,
+// {
+//     type Handle = RpcHandle<N, EthereumEthApiTypes>;
+
+//     async fn launch_add_ons(
+//         self,
+//         ctx: reth_node_api::AddOnsContext<'_, N>,
+//     ) -> eyre::Result<Self::Handle> {
+//         self.0.launch_add_ons(ctx)
+//     }
+// }
+
+
+// impl<N, EthApi, EV> NodeAddOns<N> for RpcAddOns<N, EthApi, EV>
+// where
+//     N: FullNodeComponents<
+//         Types: ProviderNodeTypes,
+//         PayloadBuilder: reth_payload_builder_primitives::traits::PayloadBuilder<PayloadType = <N::Types as NodeTypesWithEngine>::Engine>,
+//     >,
+//     EthApi: EthApiTypes + FullEthApiServer + AddDevSigners + Unpin + 'static,
+//     EV: EngineValidatorBuilder<N>,
+// {
+//     type Handle = RpcHandle<N, EthApi>;
+
+//     async fn launch_add_ons(self, ctx: AddOnsContext<'_, N>) -> eyre::Result<Self::Handle> {
+//         self.launch_add_ons_with(ctx, |_| Ok(())).await
+//     }
+// }
+
+
+// impl<N> RethRpcAddOns<N> for GwynethAddOns<N>
+// where
+//     N: FullNodeComponents<
+//         Types: NodeTypes<ChainSpec = OpChainSpec>,
+//         PayloadBuilder: PayloadBuilder<PayloadType = <N::Types as NodeTypesWithEngine>::Engine>,
+//     >,
+//     EthereumEngineValidator: EngineValidator<<N::Types as NodeTypesWithEngine>::Engine>,
+// {
+//     type EthApi = EthereumEthApiTypes;
+
+//     fn hooks_mut(&mut self) -> &mut reth_node_builder::rpc::RpcHooks<N, Self::EthApi> {
+//         self.0.hooks_mut()
+//     }
+// }
 
 #[test]
 fn test() {

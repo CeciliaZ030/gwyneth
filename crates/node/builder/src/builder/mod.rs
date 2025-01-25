@@ -441,6 +441,28 @@ where
     }
 }
 
+// impl<T, CB> WithLaunchContext<NodeBuilderWithComponents<T, CB, ()>>
+// where
+//     T: FullNodeTypes,
+//     CB: NodeComponentsBuilder<T>,
+// {
+//     /// Launches the node with the given closure.
+//     pub async fn launch_with_fn<L, R>(self, launcher: L) -> R
+//     where
+//         L: FnOnce(Self) -> R,
+//     {
+//         launcher(self)
+//     }
+
+//     /// Launches the node with the given launcher.
+//     pub async fn launch_with<L>(self, launcher: L) -> eyre::Result<L::Node>
+//     where
+//         L: LaunchNode<NodeBuilderWithComponents<T, CB, ()>>,
+//     {
+//         launcher.launch_node(self.builder).await
+//     }
+// }
+
 impl<T, CB, AO> WithLaunchContext<NodeBuilderWithComponents<T, CB, AO>>
 where
     T: FullNodeTypes,
@@ -582,6 +604,8 @@ where
         self
     }
 }
+
+
 
 impl<T, DB, CB, AO> WithLaunchContext<NodeBuilderWithComponents<RethFullAdapter<DB, T>, CB, AO>>
 where

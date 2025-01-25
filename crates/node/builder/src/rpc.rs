@@ -441,11 +441,11 @@ where
             EngineCapabilities::default(),
             engine_validator,
         );
-        info!(target: "reth::cli", "Engine API handler initialized");
+        // info!(target: "reth::cli", "Engine API handler initialized");
 
         let auth_config = config.rpc.auth_server_config(jwt_secret)?;
         let module_config = config.rpc.transport_rpc_module_config();
-        debug!(target: "reth::cli", http=?module_config.http(), ws=?module_config.ws(), "Using RPC module config");
+        // debug!(target: "reth::cli", http=?module_config.http(), ws=?module_config.ws(), "Using RPC module config");
 
         let (mut modules, mut auth_module, registry) = RpcModuleBuilder::default()
             .with_provider(node.provider().clone())
@@ -481,13 +481,13 @@ where
         let cloned_modules = modules.clone();
         let launch_rpc = server_config.start(&cloned_modules).map_ok(|handle| {
             if let Some(path) = handle.ipc_endpoint() {
-                info!(target: "reth::cli", %path, "RPC IPC server started");
+                // info!(target: "reth::cli", %path, "RPC IPC server started");
             }
             if let Some(addr) = handle.http_local_addr() {
-                info!(target: "reth::cli", url=%addr, "RPC HTTP server started");
+                // info!(target: "reth::cli", url=%addr, "RPC HTTP server started");
             }
             if let Some(addr) = handle.ws_local_addr() {
-                info!(target: "reth::cli", url=%addr, "RPC WS server started");
+                // info!(target: "reth::cli", url=%addr, "RPC WS server started");
             }
             handle
         });
@@ -495,9 +495,9 @@ where
         let launch_auth = auth_module.clone().start_server(auth_config).map_ok(|handle| {
             let addr = handle.local_addr();
             if let Some(ipc_endpoint) = handle.ipc_endpoint() {
-                info!(target: "reth::cli", url=%addr, ipc_endpoint=%ipc_endpoint,"RPC auth server started");
+                // info!(target: "reth::cli", url=%addr, ipc_endpoint=%ipc_endpoint,"RPC auth server started");
             } else {
-                info!(target: "reth::cli", url=%addr, "RPC auth server started");
+                // info!(target: "reth::cli", url=%addr, "RPC auth server started");
             }
             handle
         });

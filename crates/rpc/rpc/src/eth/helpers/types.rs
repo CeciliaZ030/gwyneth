@@ -4,7 +4,7 @@ use alloy_consensus::{Signed, Transaction as _, TxEip4844Variant, TxEnvelope};
 use alloy_network::{Ethereum, Network};
 use alloy_rpc_types_eth::{Transaction, TransactionInfo};
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
-use reth_rpc_eth_api::EthApiTypes;
+use reth_rpc_eth_api::{EthApiTypes, FullEthApiServer};
 use reth_rpc_eth_types::EthApiError;
 use reth_rpc_types_compat::TransactionCompat;
 
@@ -98,3 +98,10 @@ where
         *input = input.slice(..4);
     }
 }
+
+
+// 13  | pub struct EthereumEthApiTypes(EthTxBuilder);
+//     | ------------------------------ doesn't satisfy `EthereumEthApiTypes: FullEthApiServer` or `_: AddDevSigners`
+//     |
+
+// impl FullEthApiServer for EthereumEthApiTypes {}

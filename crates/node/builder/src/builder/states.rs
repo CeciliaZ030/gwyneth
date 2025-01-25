@@ -248,6 +248,21 @@ where
     }
 }
 
+// impl<T, CB> NodeBuilderWithComponents<T, CB, ()>
+// where
+//     T: FullNodeTypes,
+//     CB: NodeComponentsBuilder<T>,
+// {
+//     /// Launches the node with the given launcher.
+//     pub async fn launch_with<L>(self, launcher: L) -> eyre::Result<L::Node>
+//     where
+//         L: LaunchNode<Self>,
+//     {
+//         launcher.launch_node(self).await
+//     }
+
+// }
+
 impl<T, CB, AO> NodeBuilderWithComponents<T, CB, AO>
 where
     T: FullNodeTypes,
