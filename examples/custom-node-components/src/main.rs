@@ -4,10 +4,10 @@
 
 use reth::{
     api::NodeTypes,
-    builder::{components::PoolBuilder, BuilderContext, FullNodeTypes},
+    builder::{components::PoolBuilder, BuilderContext, EngineNodeLauncher, FullNodeTypes},
     chainspec::ChainSpec,
     cli::Cli,
-    providers::CanonStateSubscriptions,
+    providers::{providers::BlockchainProvider2, CanonStateSubscriptions},
     transaction_pool::{
         blobstore::InMemoryBlobStore, EthTransactionPool, TransactionValidationTaskExecutor,
     },
@@ -20,14 +20,21 @@ fn main() {
     Cli::parse_args()
         .run(|builder, _| async move {
             let handle = builder
+                .with_types_and_provider::<EthereumNode, BlockchainProvider2<_>>()
                 // use the default ethereum node types
-                .with_types::<EthereumNode>()
+                // .with_types::<EthereumNode>()
                 // Configure the components of the node
                 // use default ethereum components but use our custom pool
                 .with_components(EthereumNode::components().pool(CustomPoolBuilder::default()))
                 .with_add_ons(EthereumAddOns::default())
-                .launch()
-                .await?;
+                .launch_with_fn(|launch_ctx| { 
+                    let launcher = EngineNodeLauncher::new(
+                        launch_ctx.task_executor.clone(),
+                        launch_ctx.builder.config.datadir(),
+                        Default::default(),
+                    );
+                    launch_ctx.launch_with(launcher)
+                }).await?;
 
             handle.wait_for_node_exit().await
         })

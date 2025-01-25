@@ -16,12 +16,14 @@ use reth_node_core::{
     dirs::{DataDirPath, MaybePlatformPath},
     node_config::NodeConfig,
 };
-use reth_node_ethereum::node::EthereumAddOns;
 use reth_provider::providers::BlockchainProvider2;
 use reth_tasks::{TaskExecutor, TaskManager};
+use reth::rpc::server_types::RpcModuleSelection;
+
 use std::{future::Future, path::PathBuf, sync::Arc};
 
-// use crate::{rpc::GwynethAddOns, GwynethNode};
+use crate::{GwynethAddOns, GwynethNode};
+
 
 pub const DEFAULT_DISCOVERY_PORT: u16 = 30303;
 
@@ -171,32 +173,38 @@ impl GwynethArgs {
 //     arg: &GwynethArgs,
 //     exec: TaskExecutor,
 //     l1_node_config: &NodeConfig<ChainSpec>,
-// ) /* -> Vec<GwynethFullNode>  */{
+// ) -> Vec<GwynethFullNode> {
 //     if arg.experimental {
 //         // BlockchainProvider2
 //         arg.configure(l1_node_config, exec, |ctx| {
-//             let a = ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
+//             let n: WithLaunchContext<reth_node_builder::NodeBuilderWithTypes<reth_node_api::FullNodeTypesAdapter<reth_node_api::NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>, BlockchainProvider2<_>>>> = ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>();
+//             let c = n.with_components(GwynethNode::components::<reth_node_builder::NodeBuilderWithTypes<reth_node_api::FullNodeTypesAdapter<reth_node_api::NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>>>>());
+            
+//             ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
 //                 .with_components(GwynethNode::components())
 //                 .with_add_ons(GwynethAddOns::default())
-//                 .launch_with_fn(|launch_ctx| {
-//                     let launcher = DefaultNodeLauncher::new(
+//                 .launch_with_fn(|launch_ctx| { 
+//                     let launcher = EngineNodeLauncher::new(
 //                         launch_ctx.task_executor.clone(),
 //                         launch_ctx.builder.config.datadir(),
+//                         Default::default(),
 //                     );
 //                     launch_ctx.launch_with(launcher)
-//                 });
-//             // let b = a.node;
-//         });
-//         // .await
-//         // .iter()
-//         // .map(|handle| GwynethFullNode::Provider2(handle.node.clone()))
-//         // .collect::<Vec<_>>();
+//                 })
+//         })
+//         .await
+//         .iter()
+//         .map(|handle| {
+//             let a = handle.node.clone();
+//             GwynethFullNode::Provider2(handle.node.clone())
+//         })
+//         .collect::<Vec<_>>()
 //     } else {
 //         // BlockchainProvider
-//         // arg.configure(l1_node_config, exec, |ctx| ctx.node(GwynethNode::default()).launch())
-//         //     .await
-//         //     .iter()
-//         //     .map(|handle| GwynethFullNode::Provider1(handle.node.clone()))
-//         //     .collect::<Vec<_>>()
+//         arg.configure(l1_node_config, exec, |ctx| ctx.node(GwynethNode::default()).launch())
+//             .await
+//             .iter()
+//             .map(|handle| GwynethFullNode::Provider1(handle.node.clone()))
+//             .collect::<Vec<_>>()
 //     }
 // }

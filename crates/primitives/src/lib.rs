@@ -60,6 +60,8 @@ pub use arbitrary;
 #[cfg(feature = "c-kzg")]
 pub use c_kzg as kzg;
 
+pub const ETHEREUM_CHAIN_ID: u64 = 1;
+
 /// Bincode-compatible serde implementations for commonly used types in Reth.
 ///
 /// `bincode` crate doesn't work with optionally serializable serde fields, but some of the

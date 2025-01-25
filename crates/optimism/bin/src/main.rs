@@ -33,15 +33,6 @@ fn main() {
                     let engine_tree_config = TreeConfig::default()
                         .with_persistence_threshold(rollup_args.persistence_threshold)
                         .with_memory_block_buffer_target(rollup_args.memory_block_buffer_target);
-
-                    let handle = builder
-                        .with_types_and_provider::<OpNode, BlockchainProvider2<_>>()
-                        /* .with_components(OpNode::components(rollup_args)) */;
-
-                    // let n1 = builder.with_types_and_provider::<OpNode, BlockchainProvider2<_>>();
-                    // let c1 = n1.with_components(OpNode::components(rollup_args));
-                    use gwyneth;
-                    
                     let handle = builder
                         .with_types_and_provider::<OpNode, BlockchainProvider2<_>>()
                         .with_components(OpNode::components(rollup_args))

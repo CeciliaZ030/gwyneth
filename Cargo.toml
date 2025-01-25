@@ -148,8 +148,8 @@ members = [
     "examples/txpool-tracing/",
     "examples/custom-beacon-withdrawals",
     "testing/ef-tests/",
-    "testing/testing-utils", "bin/reth", "crates/gwyneth", 
-    # "crates/gwyneth",
+    "testing/testing-utils", "bin/reth",
+    "crates/gwyneth",
 ]
 default-members = ["bin/reth"]
 exclude = ["book/sources"]

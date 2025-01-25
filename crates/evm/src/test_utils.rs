@@ -15,7 +15,7 @@ use reth_execution_types::ExecutionOutcome;
 use reth_primitives::{BlockWithSenders, Receipt, Receipts};
 use reth_prune_types::PruneModes;
 use reth_storage_errors::provider::ProviderError;
-use revm::State;
+use revm::{Database, State};
 use revm_primitives::db::SyncDatabase;
 use std::{fmt::Display, sync::Arc};
 
@@ -119,7 +119,7 @@ impl<DB> BatchExecutor<DB> for MockExecutorProvider {
 impl<S, DB> BasicBlockExecutor<S, DB>
 where
     S: BlockExecutionStrategy<DB>,
-    DB: Database,
+    DB: SyncDatabase,
 {
     /// Provides safe read access to the state
     pub fn with_state<F, R>(&self, f: F) -> R
@@ -141,7 +141,7 @@ where
 impl<S, DB> BasicBatchExecutor<S, DB>
 where
     S: BlockExecutionStrategy<DB>,
-    DB: Database,
+    DB: SyncDatabase,
 {
     /// Provides safe read access to the state
     pub fn with_state<F, R>(&self, f: F) -> R

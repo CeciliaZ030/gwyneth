@@ -13,10 +13,10 @@ use reth_db_api::{database::Database, models::StoredBlockBodyIndices};
 use reth_node_types::NodeTypes;
 use reth_primitives::{
     Account, BlockBody, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader, Transaction,
-    TransactionSigned, TxType,
+    TransactionSigned, TxType, ETHEREUM_CHAIN_ID,
 };
 use reth_trie::root::{state_root_unhashed, storage_root_unhashed};
-use revm::{db::BundleState, primitives::{AccountInfo, ChainAddress, HashMap}};
+use revm::{db::BundleState, primitives::{AccountInfo, ChainAddress}};
 use std::{str::FromStr, sync::LazyLock};
 
 /// Assert genesis block

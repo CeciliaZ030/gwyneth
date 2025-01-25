@@ -8,12 +8,10 @@ use derive_more::Deref;
 use alloy_consensus::{Header, Transaction};
 // use op_alloy_network::Optimism;
 use reth_chainspec::{ChainSpec, EthChainSpec, EthereumHardforks};
-use reth_ethereum_engine_primitives::EthereumEngineValidator;
 use reth_evm::ConfigureEvm;
 use reth_network::NetworkInfo;
-use reth_node_api::{EngineValidator, FullNodeComponents, NodeAddOns, NodeTypes, NodeTypesWithEngine, PayloadBuilder};
-use reth_node_builder::{rpc::{EngineValidatorBuilder, RpcAddOns, RpcHandle}, EthApiBuilderCtx};
-use reth_node_ethereum::node::EthereumEngineValidatorBuilder;
+use reth_node_api::{validate_version_specific_fields, EngineApiMessageVersion, EngineObjectValidationError, EngineTypes, EngineValidator, FullNodeComponents, NodeAddOns, NodeTypes, NodeTypesWithEngine, PayloadBuilder, PayloadOrAttributes};
+use reth_node_builder::{rpc::{EngineValidatorBuilder, RethRpcAddOns, RpcAddOns, RpcHandle}, EthApiBuilderCtx};
 use reth_primitives::TransactionMeta;
 use reth_provider::{
     BlockNumReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider, EvmEnvProvider, HeaderProvider, StageCheckpointReader, StateProviderFactory, TransactionsProvider
@@ -33,6 +31,8 @@ use reth_tasks::{
 };
 use reth_transaction_pool::TransactionPool;
 use revm::primitives::U256;
+
+use crate::{GwynethEngineTypes, GwynethPayloadAttributes, GwynethPayloadBuilder};
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N> = EthApiInner<
@@ -427,11 +427,26 @@ where
 }
 
 #[derive(Debug)]
-pub struct GwynethAddOns<N: FullNodeComponents>(pub RpcAddOns<N, GwynethEthApi<N>, EthereumEngineValidatorBuilder>);
+pub struct GwynethAddOns<N: FullNodeComponents>(pub RpcAddOns<N, GwynethEthApi<N>, GwynethEngineValidatorBuilder>);
 
 impl<N: FullNodeComponents> Default for GwynethAddOns<N> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<N> RethRpcAddOns<N> for GwynethAddOns<N>
+where
+    N: FullNodeComponents<
+        Types: NodeTypes<ChainSpec = ChainSpec>,
+        PayloadBuilder: PayloadBuilder<PayloadType = <N::Types as NodeTypesWithEngine>::Engine>,
+    >,
+    GwynethEngineValidator: EngineValidator<<N::Types as NodeTypesWithEngine>::Engine>,
+{
+    type EthApi = GwynethEthApi<N>;
+
+    fn hooks_mut(&mut self) -> &mut reth_node_builder::rpc::RpcHooks<N, Self::EthApi> {
+        self.0.hooks_mut()
     }
 }
 
@@ -448,7 +463,7 @@ where
         Types: NodeTypes<ChainSpec = ChainSpec>,
         PayloadBuilder: PayloadBuilder<PayloadType = <N::Types as NodeTypesWithEngine>::Engine>,
     >,
-    EthereumEngineValidator: EngineValidator<<N::Types as NodeTypesWithEngine>::Engine>,
+    GwynethEngineValidator: EngineValidator<<N::Types as NodeTypesWithEngine>::Engine>,
 {
     type Handle = RpcHandle<N, GwynethEthApi<N>>;
 
@@ -460,3 +475,58 @@ where
         self.0.launch_add_ons_with(ctx, |_| Ok(())).await
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct GwynethEngineValidator {
+    pub chain_spec: Arc<ChainSpec>,
+}
+
+impl GwynethEngineValidator {
+    /// Instantiates a new validator.
+    pub const fn new(chain_spec: Arc<ChainSpec>) -> Self {
+        Self { chain_spec }
+    }
+}
+
+impl<Types> EngineValidator<Types> for GwynethEngineValidator
+where
+    Types: EngineTypes<PayloadAttributes = GwynethPayloadAttributes>,
+{
+    fn validate_version_specific_fields(
+        &self,
+        version: EngineApiMessageVersion,
+        payload_or_attrs: PayloadOrAttributes<'_, GwynethPayloadAttributes>,
+    ) -> Result<(), EngineObjectValidationError> {
+        validate_version_specific_fields(&self.chain_spec, version, payload_or_attrs)
+    }
+
+    fn ensure_well_formed_attributes(
+        &self,
+        version: EngineApiMessageVersion,
+        attributes: &GwynethPayloadAttributes,
+    ) -> Result<(), EngineObjectValidationError> {
+        validate_version_specific_fields(&self.chain_spec, version, attributes.into())
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+#[non_exhaustive]
+pub struct GwynethEngineValidatorBuilder;
+
+impl<Node, Types> EngineValidatorBuilder<Node> for GwynethEngineValidatorBuilder
+where
+    Types: NodeTypesWithEngine<ChainSpec = ChainSpec>,
+    Node: FullNodeComponents<Types = Types>,
+    GwynethEngineValidator: EngineValidator<Types::Engine>,
+{
+    type Validator = GwynethEngineValidator;
+
+    async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<GwynethEngineValidator> {
+        Ok(GwynethEngineValidator::new(ctx.config.chain.clone()))
+    }
+}
+
+
+
+
+

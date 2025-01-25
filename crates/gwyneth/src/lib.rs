@@ -33,7 +33,8 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 pub mod builder;
 pub mod exex;
 pub mod cli;
-pub mod rpc;
+// pub mod rpc;
+pub mod tmp;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
