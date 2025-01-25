@@ -34,8 +34,6 @@ impl<T: PayloadTypes> PayloadTypes for EthEngineTypes<T> {
     type BuiltPayload = T::BuiltPayload;
     type PayloadAttributes = T::PayloadAttributes;
     type PayloadBuilderAttributes = T::PayloadBuilderAttributes;
-
-    // type SyncProvider = ();
 }
 
 impl<T: PayloadTypes> EngineTypes for EthEngineTypes<T>
@@ -67,7 +65,7 @@ impl PayloadTypes for EthPayloadTypes {
 /// Validator for the ethereum engine API.
 #[derive(Debug, Clone)]
 pub struct EthereumEngineValidator {
-    chain_spec: Arc<ChainSpec>,
+    pub chain_spec: Arc<ChainSpec>,
 }
 
 impl EthereumEngineValidator {
