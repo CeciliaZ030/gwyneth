@@ -2849,6 +2849,7 @@ dependencies = [
  "reth",
  "reth-basic-payload-builder",
  "reth-chainspec",
+ "reth-db",
  "reth-ethereum-payload-builder",
  "reth-node-api",
  "reth-node-core",
