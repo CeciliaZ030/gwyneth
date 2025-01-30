@@ -319,6 +319,7 @@ mod tests {
         test_utils::StateProviderTest,
         TransitionState,
     };
+    use revm_primitives::OnChain;
     use reth_storage_api::StateProvider;
     use reth_testing_utils::generators::{self, sign_tx_with_key_pair};
     use revm_primitives::BLOCKHASH_SERVE_WINDOW;
@@ -381,7 +382,7 @@ mod tests {
         let mut header =
             Header { timestamp: 1, number: 1, excess_blob_gas: Some(0), ..Header::default() };
 
-        let db = create_state_provider_with_beacon_root_contract();
+        let db = get_sync_db(1, create_state_provider_with_beacon_root_contract());
 
         let chain_spec = Arc::new(
             ChainSpecBuilder::from(&*MAINNET)
@@ -391,8 +392,8 @@ mod tests {
         );
         let chain_id = chain_spec.chain().id();
         let provider = executor_provider(chain_spec);
-
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        
+        let mut executor = provider.batch_executor(db);
 
         // attempt to execute a block without parent beacon block root, expect err
         let err = executor
@@ -457,14 +458,14 @@ mod tests {
             timestamp_index % history_buffer_length + history_buffer_length;
 
         let timestamp_storage = executor.with_state_mut(|state| {
-            state.storage(BEACON_ROOTS_ADDRESS, U256::from(timestamp_index)).unwrap()
+            state.storage(BEACON_ROOTS_ADDRESS.on_chain(chain_id), U256::from(timestamp_index)).unwrap()
         });
         assert_eq!(timestamp_storage, U256::from(header.timestamp));
 
         // get parent beacon block root storage and compare
         let parent_beacon_block_root_storage = executor.with_state_mut(|state| {
             state
-                .storage(BEACON_ROOTS_ADDRESS, U256::from(parent_beacon_block_root_index))
+                .storage(BEACON_ROOTS_ADDRESS.on_chain(chain_id), U256::from(parent_beacon_block_root_index))
                 .expect("storage value should exist")
         });
         assert_eq!(parent_beacon_block_root_storage, U256::from(0x69));
@@ -591,8 +592,8 @@ mod tests {
         );
 
         let mut header = chain_spec.genesis_header().clone();
-        let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(get_sync_db(chain_spec.chain().id(), &db));
+        let provider = executor_provider(chain_spec.clone());
+        let mut executor = provider.batch_executor(get_sync_db(chain_spec.clone().chain().id(), &db));
 
         // attempt to execute the genesis block with non-zero parent beacon block root, expect err
         header.parent_beacon_block_root = Some(B256::with_last_byte(0x69));
@@ -1052,7 +1053,7 @@ mod tests {
             U256::ZERO
         );
         assert!(executor.with_state_mut(|state| state
-            .storage(HISTORY_STORAGE_ADDRESS, U256::from(2))
+            .storage(HISTORY_STORAGE_ADDRESS.on_chain(chain_id), U256::from(2))
             .unwrap()
             .is_zero()));
     }

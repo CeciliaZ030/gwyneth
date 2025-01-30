@@ -39,10 +39,9 @@ use reth_node_api::{
 use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_node_ethereum::{
     node::{
-        EthereumConsensusBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder,
-        EthereumPoolBuilder,
+        EthereumAddOns, EthereumConsensusBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder, EthereumPoolBuilder
     },
-    EthEvmConfig,
+    EthEvmConfig, EthereumNode,
 };
 use reth_payload_builder::{
     EthBuiltPayload, EthPayloadBuilderAttributes, PayloadBuilderError, PayloadBuilderHandle,
@@ -258,17 +257,13 @@ impl NodeTypes for GwynethNode {
     type StateCommitment = MerklePatriciaTrie;
 }
 
-/// Configure the node types with the custom engine types
 impl NodeTypesWithEngine for GwynethNode {
     type Engine = GwynethEngineTypes;
 }
-// impl NodeTypesWithDB for GwynethNode {
-//     type DB = Arc<DatabaseEnv>;
-// }
 
-// impl ProviderNodeTypes for GwynethNode {}
-
-
+impl NodeTypesWithDB for GwynethNode {
+    type DB = Arc<DatabaseEnv>;
+}
 
 pub type GwynethAddOns<N> = RpcAddOns<
     N,
@@ -289,7 +284,7 @@ where
     type ComponentsBuilder = ComponentsBuilder<
         N,
         EthereumPoolBuilder,
-        CustomPayloadServiceBuilder,
+        GwynethPayloadServiceBuilder,
         EthereumNetworkBuilder,
         EthereumExecutorBuilder,
         EthereumConsensusBuilder,
@@ -302,7 +297,7 @@ where
         ComponentsBuilder::default()
             .node_types::<N>()
             .pool(EthereumPoolBuilder::default())
-            .payload(CustomPayloadServiceBuilder::default())
+            .payload(GwynethPayloadServiceBuilder::default())
             .network(EthereumNetworkBuilder::default())
             .executor(EthereumExecutorBuilder::default())
             .consensus(EthereumConsensusBuilder::default())
@@ -316,9 +311,9 @@ where
 /// A custom payload service builder that supports the custom engine types
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
-pub struct CustomPayloadServiceBuilder;
+pub struct GwynethPayloadServiceBuilder;
 
-impl<Node, Pool> PayloadServiceBuilder<Node, Pool> for CustomPayloadServiceBuilder
+impl<Node, Pool> PayloadServiceBuilder<Node, Pool> for GwynethPayloadServiceBuilder
 where
     Node: FullNodeTypes<
         Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>,
@@ -431,44 +426,44 @@ async fn main() -> eyre::Result<()> {
 }
 
 
-// async fn main__() -> eyre::Result<()> {
-//     let _guard = RethTracer::new().init()?;
+async fn main__() -> eyre::Result<()> {
+    let _guard = RethTracer::new().init()?;
 
-//     let tasks = TaskManager::current();
+    let tasks = TaskManager::current();
 
-//     // create optimism genesis with canyon at block 2
-//     let spec = ChainSpec::builder()
-//         .chain(Chain::mainnet())
-//         .genesis(Genesis::default())
-//         .london_activated()
-//         .paris_activated()
-//         .shanghai_activated()
-//         .build();
+    // create optimism genesis with canyon at block 2
+    let spec = ChainSpec::builder()
+        .chain(Chain::mainnet())
+        .genesis(Genesis::default())
+        .london_activated()
+        .paris_activated()
+        .shanghai_activated()
+        .build();
 
-//     // create node config
-//     let node_config =
-//         NodeConfig::test().with_rpc(RpcServerArgs::default().with_http()).with_chain(spec);
+    // create node config
+    let node_config =
+        NodeConfig::test().with_rpc(RpcServerArgs::default().with_http()).with_chain(spec);
 
     
-//     let handle = NodeBuilder::new(node_config)
-//         .with_gwyneth_launch_context(TaskManager::current().executor(), PathBuf::new())
-//         .with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
-//         .with_components({
-//             GwynethNode::components_builder(&GwynethNode::default())
-//         })
-//         .with_add_ons(GwynethAddOns::default())
-//         .launch_with_fn(|launch_ctx| { 
-//             let launcher = EngineNodeLauncher::new(
-//                 launch_ctx.task_executor.clone(),
-//                 launch_ctx.builder.config.datadir(),
-//                 Default::default(),
-//             );
-//             launch_ctx.launch_with(launcher)
-//         }).await;
+    let handle = NodeBuilder::new(node_config)
+        .with_gwyneth_launch_context(TaskManager::current().executor(), PathBuf::new())
+        .with_types_and_provider::<GwynethNode, BlockchainProvider2<NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>>>()
+        .with_components({
+            GwynethNode::components_builder(&GwynethNode::default())
+        })
+        .with_add_ons(GwynethAddOns::default())
+        .launch_with_fn(|launch_ctx| { 
+            let launcher = EngineNodeLauncher::new(
+                launch_ctx.task_executor.clone(),
+                launch_ctx.builder.config.datadir(),
+                Default::default(),
+            );
+            launch_ctx.launch_with(launcher)
+        }).await?;
 
-//     // let a: GwynethFullNode2 = handle.node.clone();
+    // let a: GwynethFullNode2 = handle.node.clone();
 
-//     println!("Node started");
+    println!("Node started");
 
-//     handle.node_exit_future.await
-// }
+    handle.node_exit_future.await
+}
