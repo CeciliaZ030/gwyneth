@@ -398,6 +398,38 @@ async fn main() -> eyre::Result<()> {
         .launch_node(MyCustomNode::default())
         .await
         .unwrap();
+    
+    // ============================
+    let path = reth_node_core::dirs::MaybePlatformPath::<DataDirPath>::from("/tmp/xxx".into());
+
+    let data_dir =
+        path.unwrap_or_chain_default(node_config.chain.chain(), node_config.datadir.clone());
+
+    let db = reth_db::init_db(
+        data_dir,
+        DatabaseArguments::new(ClientVersion::default())
+            .with_max_read_transaction_duration(Some(MaxReadTransactionDuration::Unbounded)),
+    )
+    .unwrap();
+
+    let handle2 = NodeBuilder::new(node_config)
+        .with_database(Arc::new(db))
+        .with_launch_context(tasks.executor())
+        .with_types_and_provider::<MyCustomNode, BlockchainProvider2<_>>()
+        .with_components({
+            MyCustomNode::components_builder(&MyCustomNode::default())
+        })
+        .with_add_ons(MyNodeAddOns::default())
+        .launch_with_fn(|launch_ctx| { 
+            let launcher = EngineNodeLauncher::new(
+                launch_ctx.task_executor.clone(),
+                launch_ctx.builder.config.datadir(),
+                Default::default(),
+            );
+            launch_ctx.launch_with(launcher)
+        }).await?;
+
+    // ============================
 
     println!("Node started");
 
