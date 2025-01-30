@@ -16,12 +16,14 @@ use reth_node_core::{
     dirs::{DataDirPath, MaybePlatformPath},
     node_config::NodeConfig,
 };
-use reth_node_ethereum::node::EthereumAddOns;
 use reth_provider::providers::BlockchainProvider2;
 use reth_tasks::{TaskExecutor, TaskManager};
+use reth::rpc::server_types::RpcModuleSelection;
+
 use std::{future::Future, path::PathBuf, sync::Arc};
 
-// use crate::{rpc::GwynethAddOns, GwynethNode};
+use crate::{exex::GwynethFullNode, GwynethAddOns, GwynethNode};
+
 
 pub const DEFAULT_DISCOVERY_PORT: u16 = 30303;
 
@@ -166,37 +168,126 @@ impl GwynethArgs {
 }
 
 
-// /// Create Gwyneth nodes with the given args and l1 node config
-// pub async fn create_gwyneth_nodes(
-//     arg: &GwynethArgs,
-//     exec: TaskExecutor,
-//     l1_node_config: &NodeConfig<ChainSpec>,
-// ) /* -> Vec<GwynethFullNode>  */{
-//     if arg.experimental {
-//         // BlockchainProvider2
-//         arg.configure(l1_node_config, exec, |ctx| {
-//             let a = ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
-//                 .with_components(GwynethNode::components())
-//                 .with_add_ons(GwynethAddOns::default())
-//                 .launch_with_fn(|launch_ctx| {
-//                     let launcher = DefaultNodeLauncher::new(
-//                         launch_ctx.task_executor.clone(),
-//                         launch_ctx.builder.config.datadir(),
-//                     );
-//                     launch_ctx.launch_with(launcher)
-//                 });
-//             // let b = a.node;
-//         });
-//         // .await
-//         // .iter()
-//         // .map(|handle| GwynethFullNode::Provider2(handle.node.clone()))
-//         // .collect::<Vec<_>>();
-//     } else {
-//         // BlockchainProvider
-//         // arg.configure(l1_node_config, exec, |ctx| ctx.node(GwynethNode::default()).launch())
-//         //     .await
-//         //     .iter()
-//         //     .map(|handle| GwynethFullNode::Provider1(handle.node.clone()))
-//         //     .collect::<Vec<_>>()
-//     }
-// }
+/// Create Gwyneth nodes with the given args and l1 node config
+pub async fn create_gwyneth_nodes(
+    arg: &GwynethArgs,
+    exec: TaskExecutor,
+    l1_node_config: &NodeConfig<ChainSpec>,
+) -> Vec<GwynethFullNode> {
+    if arg.experimental {
+        // BlockchainProvider2
+        // arg.configure(l1_node_config, exec, |ctx| {
+
+        //     ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
+        //         .with_components(GwynethNode::components_builder(Default::default()))
+        //         .with_add_ons(GwynethAddOns::default())
+        //         .launch_with_fn(|launch_ctx| { 
+        //             let launcher = EngineNodeLauncher::new(
+        //                 launch_ctx.task_executor.clone(),
+        //                 launch_ctx.builder.config.datadir(),
+        //                 Default::default(),
+        //             );
+        //             launch_ctx.launch_with(launcher)
+        //         })
+        // })
+        // .await
+        // .iter()
+        // .map(|handle| {
+        //     let a = handle.node.clone();
+        //     GwynethFullNode::Provider2(handle.node.clone())
+        // })
+        // .collect::<Vec<_>>()
+        todo!()
+    } else {
+        // BlockchainProvider
+        arg.configure(l1_node_config, exec, |ctx| ctx.node(GwynethNode::default()).launch())
+            .await
+            .iter()
+            .map(|handle| GwynethFullNode::Provider1(handle.node.clone()))
+            .collect::<Vec<_>>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use reth::chainspec::EthereumChainSpecParser;
+    use reth_cli_commands::node::NodeCommand;
+
+    #[tokio::test]
+    async fn test_create_gwyneth_nodes() {
+        println!("compile");
+        create_gwyneth_nodes(
+            &GwynethArgs {
+                chain_ids: vec![160010, 160011],
+                datadirs: vec!["path/one".into(), "path/two".into()],
+                ports: Some(vec![1234, 2345]),
+                auth_ports: Some(vec![6666, 7777]),
+                ipc_paths: Some(vec!["/tmp/ipc-1".into(), "/tmp/ipc-2".into()]),
+                rbuilder_config: Some("path/to/rbuilder.toml".into()),
+                experimental: false,
+            }, 
+            TaskManager::current().executor(), 
+            &NodeConfig::default()
+        ).await;
+    }
+xx
+
+    #[test]
+    fn parse_common_node_command_l2_args() {
+        let args = NodeCommand::<EthereumChainSpecParser, GwynethArgs>::parse_from([
+            "reth",
+            "--l2.chain_ids",
+            "160010",
+            "160011",
+            "--l2.datadirs",
+            "path/one",
+            "path/two",
+            "--l2.ports",
+            "1234",
+            "2345",
+            "--l2.auth_ports",
+            "6666",
+            "7777",
+            "--l2.ipcs",
+            "/tmp/ipc-1",
+            "/tmp/ipc-2",
+            "--rbuilder.config",
+            "path/to/rbuilder.toml",
+            "--engine.experimental",
+        ]);
+        assert_eq!(
+            args.ext,
+            GwynethArgs {
+                chain_ids: vec![160010, 160011],
+                datadirs: vec!["path/one".into(), "path/two".into()],
+                ports: Some(vec![1234, 2345]),
+                auth_ports: Some(vec![6666, 7777]),
+                ipc_paths: Some(vec!["/tmp/ipc-1".into(), "/tmp/ipc-2".into()]),
+                rbuilder_config: Some("path/to/rbuilder.toml".into()),
+                experimental: true,
+            }
+        )
+    }
+
+    #[test]
+    #[should_panic]
+    fn parse_l2_args() {
+        let _ = NodeCommand::<EthereumChainSpecParser, GwynethArgs>::try_parse_from(["reth"]).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_creating_nodes() {
+        let args = GwynethArgs {
+            chain_ids: vec![160010, 160011],
+            datadirs: vec!["path/one".into(), "path/two".into()],
+            ..Default::default()
+        };
+        let l1_node_config = NodeConfig::default();
+        let exec = TaskManager::current().executor();
+
+        let gwyneth_nodes = create_gwyneth_nodes(&args, exec, &l1_node_config).await;
+        assert_eq!(gwyneth_nodes.len(), 2);
+    }
+}
