@@ -21,6 +21,7 @@ alloy-genesis.workspace = true
 alloy-rpc-types = { workspace = true, features = ["engine"] }
 alloy-primitives.workspace = true
 alloy-eips.workspace = true
+reth-engine-local = { workspace = true, features = ["custom"] }
 
 eyre.workspace = true
 tokio.workspace = true

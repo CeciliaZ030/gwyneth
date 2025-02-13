@@ -19,7 +19,10 @@
 
 use std::{convert::Infallible, sync::Arc};
 
-use reth_db::{mdbx::{DatabaseArguments, MaxReadTransactionDuration}, ClientVersion};
+use reth_db::{
+    mdbx::{DatabaseArguments, MaxReadTransactionDuration},
+    ClientVersion,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -36,7 +39,11 @@ use alloy_rpc_types::{
 use reth::{
     api::PayloadTypes,
     builder::{
-        components::{ComponentsBuilder, PayloadServiceBuilder}, node::{NodeTypes, NodeTypesWithEngine}, rpc::{EngineValidatorBuilder, RpcAddOns}, BuilderContext, EngineNodeLauncher, FullNodeTypes, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder, PayloadBuilderConfig
+        components::{ComponentsBuilder, PayloadServiceBuilder},
+        node::{NodeTypes, NodeTypesWithEngine},
+        rpc::{EngineValidatorBuilder, RpcAddOns},
+        BuilderContext, EngineNodeLauncher, FullNodeTypes, Node, NodeAdapter, NodeBuilder,
+        NodeComponentsBuilder, PayloadBuilderConfig,
     },
     network::NetworkHandle,
     providers::{providers::BlockchainProvider2, CanonStateSubscriptions, StateProviderFactory},
@@ -49,6 +56,7 @@ use reth_basic_payload_builder::{
     PayloadBuilder, PayloadConfig,
 };
 use reth_chainspec::{Chain, ChainSpec, ChainSpecProvider};
+use reth_engine_local::payload::CustomPayloadAttributes;
 use reth_node_api::{
     payload::{EngineApiMessageVersion, EngineObjectValidationError, PayloadOrAttributes},
     validate_version_specific_fields, AddOnsContext, EngineTypes, EngineValidator,
@@ -68,16 +76,6 @@ use reth_payload_builder::{
 };
 use reth_tracing::{RethTracer, Tracer};
 use reth_trie_db::MerklePatriciaTrie;
-
-/// A custom payload attributes type.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CustomPayloadAttributes {
-    /// An inner payload type
-    #[serde(flatten)]
-    pub inner: EthPayloadAttributes,
-    /// A custom field
-    pub custom: u64,
-}
 
 /// Custom error type used in payload attributes validation
 #[derive(Debug, Error)]
@@ -395,7 +393,7 @@ async fn main() -> eyre::Result<()> {
         .launch_node(MyCustomNode::default())
         .await
         .unwrap();
-    
+
     // ============================
     let path = reth_node_core::dirs::MaybePlatformPath::<DataDirPath>::from("/tmp/xxx".into());
 
@@ -413,18 +411,17 @@ async fn main() -> eyre::Result<()> {
         .with_database(Arc::new(db))
         .with_launch_context(tasks.executor())
         .with_types_and_provider::<MyCustomNode, BlockchainProvider2<_>>()
-        .with_components({
-            MyCustomNode::components_builder(&MyCustomNode::default())
-        })
+        .with_components({ MyCustomNode::components_builder(&MyCustomNode::default()) })
         .with_add_ons(MyNodeAddOns::default())
-        .launch_with_fn(|launch_ctx| { 
+        .launch_with_fn(|launch_ctx| {
             let launcher = EngineNodeLauncher::new(
-                launch_ctx.task_executor.clone(),
-                launch_ctx.builder.config.datadir(),
+                launch_ctx.task_executor().clone(),
+                launch_ctx.config().datadir(),
                 Default::default(),
             );
             launch_ctx.launch_with(launcher)
-        }).await?;
+        })
+        .await?;
 
     // ============================
 
