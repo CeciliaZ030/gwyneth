@@ -52,3 +52,4 @@ optimism = [
     "reth-beacon-consensus/optimism",
     "reth-provider/optimism",
 ]
+custom = []

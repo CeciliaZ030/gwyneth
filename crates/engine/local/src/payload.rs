@@ -59,3 +59,24 @@ where
         }
     }
 }
+
+/// A custom payload attributes type.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomPayloadAttributes {
+    /// An inner payload type
+    #[serde(flatten)]
+    pub inner: EthPayloadAttributes,
+    /// A custom field
+    pub custom: u64,
+}
+
+#[cfg(feature = "custom")]
+impl<ChainSpec> PayloadAttributesBuilder<CustomPayloadAttributes>
+    for LocalPayloadAttributesBuilder<ChainSpec>
+where
+    ChainSpec: Send + Sync + EthereumHardforks + 'static,
+{
+    fn build(&self, timestamp: u64) -> CustomPayloadAttributes {
+        CustomPayloadAttributes { inner: self.build(timestamp), custom: 0 }
+    }
+}
