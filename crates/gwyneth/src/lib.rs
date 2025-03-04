@@ -19,6 +19,7 @@ use alloy_rpc_types::{
         ExecutionPayloadV1, PayloadAttributes as EthPayloadAttributes, PayloadId,
     }, Withdrawal
 };
+use alloy_sol_types::{sol, SolEventInterface};
 use reth::{
     api::PayloadTypes, builder::{
         components::{ComponentsBuilder, PayloadServiceBuilder},
@@ -55,6 +56,9 @@ pub mod builder;
 pub mod cli;
 pub mod exex;
 pub mod engine_api;
+
+sol!(RollupContract, "TaikoL1.json");
+
 
 /// A custom payload attributes type.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

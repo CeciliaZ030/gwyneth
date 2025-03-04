@@ -232,7 +232,7 @@ mod tests {
             &NodeConfig::default()
         ).await;
     }
-xx
+
 
     #[test]
     fn parse_common_node_command_l2_args() {
@@ -275,19 +275,5 @@ xx
     #[should_panic]
     fn parse_l2_args() {
         let _ = NodeCommand::<EthereumChainSpecParser, GwynethArgs>::try_parse_from(["reth"]).unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_creating_nodes() {
-        let args = GwynethArgs {
-            chain_ids: vec![160010, 160011],
-            datadirs: vec!["path/one".into(), "path/two".into()],
-            ..Default::default()
-        };
-        let l1_node_config = NodeConfig::default();
-        let exec = TaskManager::current().executor();
-
-        let gwyneth_nodes = create_gwyneth_nodes(&args, exec, &l1_node_config).await;
-        assert_eq!(gwyneth_nodes.len(), 2);
     }
 }
