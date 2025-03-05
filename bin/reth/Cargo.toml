@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 
-# gwyneth.workspace = true
+gwyneth.workspace = true
 
 # reth
 reth-cli.workspace = true

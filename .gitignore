@@ -55,3 +55,7 @@ rustc-ice-*
 book/sources/Cargo.lock
 
 packages/protocol/broadcast/**
+
+# Gwyneth static files
+crates/gwyneth/path/**
+=

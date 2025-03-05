@@ -18,7 +18,6 @@ use reth_node_core::{
 };
 use reth_provider::providers::BlockchainProvider2;
 use reth_tasks::{TaskExecutor, TaskManager};
-use reth::rpc::server_types::RpcModuleSelection;
 
 use std::{future::Future, path::PathBuf, sync::Arc};
 
@@ -176,28 +175,26 @@ pub async fn create_gwyneth_nodes(
 ) -> Vec<GwynethFullNode> {
     if arg.experimental {
         // BlockchainProvider2
-        // arg.configure(l1_node_config, exec, |ctx| {
-
-        //     ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
-        //         .with_components(GwynethNode::components_builder(Default::default()))
-        //         .with_add_ons(GwynethAddOns::default())
-        //         .launch_with_fn(|launch_ctx| { 
-        //             let launcher = EngineNodeLauncher::new(
-        //                 launch_ctx.task_executor.clone(),
-        //                 launch_ctx.builder.config.datadir(),
-        //                 Default::default(),
-        //             );
-        //             launch_ctx.launch_with(launcher)
-        //         })
-        // })
-        // .await
-        // .iter()
-        // .map(|handle| {
-        //     let a = handle.node.clone();
-        //     GwynethFullNode::Provider2(handle.node.clone())
-        // })
-        // .collect::<Vec<_>>()
-        todo!()
+        arg.configure(l1_node_config, exec, |ctx| {
+            ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
+                .with_components(GwynethNode::components_builder(&Default::default()))
+                .with_add_ons(GwynethAddOns::default())
+                .launch_with_fn(|launch_ctx| { 
+                    let launcher = EngineNodeLauncher::new(
+                        launch_ctx.task_executor.clone(),
+                        launch_ctx.builder.config.datadir(),
+                        Default::default(),
+                    );
+                    launch_ctx.launch_with(launcher)
+                })
+        })
+        .await
+        .iter()
+        .map(|handle| {
+            GwynethFullNode::Provider2(handle.node.clone())
+        })
+        .collect::<Vec<_>>()
+        // todo!()
     } else {
         // BlockchainProvider
         arg.configure(l1_node_config, exec, |ctx| ctx.node(GwynethNode::default()).launch())
@@ -212,8 +209,8 @@ pub async fn create_gwyneth_nodes(
 mod tests {
     use super::*;
     use clap::Parser;
-    use reth::chainspec::EthereumChainSpecParser;
     use reth_cli_commands::node::NodeCommand;
+    use reth_ethereum_cli::chainspec::EthereumChainSpecParser;
 
     #[tokio::test]
     async fn test_create_gwyneth_nodes() {

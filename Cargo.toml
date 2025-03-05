@@ -300,7 +300,7 @@ codegen-units = 1
 overflow-checks = true
 
 [workspace.dependencies]
-# gwyneth = { path = "crates/gwyneth" }
+gwyneth = { path = "crates/gwyneth" }
 
 # reth
 op-reth = { path = "crates/optimism/bin" }

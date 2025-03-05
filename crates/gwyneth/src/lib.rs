@@ -1,18 +1,25 @@
-use std::{convert::Infallible, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, path::PathBuf, sync::Arc};
 
 use alloy_consensus::Header;
+use reth_transaction_pool::TransactionPool;
 use crate::exex::{GwynethFullNode1, GwynethFullNode2};
 use reth_db::DatabaseEnv;
-use reth_node_builder::{DefaultNodeLauncher, EngineNodeLauncher, LaunchNode};
-use reth_primitives::EthPrimitives;
-use reth_provider::providers::{BlockchainProvider2, ProviderNodeTypes};
-use reth_tasks::TaskExecutor;
+use reth_node_builder::{components::{ComponentsBuilder, PayloadServiceBuilder}, rpc::{EngineValidatorBuilder, RpcAddOns}, BuilderContext, DefaultNodeLauncher, EngineNodeLauncher, LaunchNode, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder};
+use reth_primitives::{transaction::WithEncoded, EthPrimitives, TransactionSigned};
+use reth_provider::{providers::{BlockchainProvider2, ProviderNodeTypes}, StateProviderBox, StateProviderFactory};
+use reth_tasks::{TaskExecutor, TaskManager};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use reth_rpc::EthApi;
+use reth_network::NetworkHandle;
+use reth_node_builder::PayloadBuilderConfig;
+use reth_chain_state::CanonStateSubscriptions;
+use reth_engine_local::LocalPayloadAttributesBuilder;
+
 
 use alloy_eips::eip4895::Withdrawals;
 use alloy_genesis::Genesis;
-use alloy_primitives::{map::HashMap, Address, ChainId, B256};
+use alloy_primitives::{Address, ChainId, B256};
 use alloy_rpc_types::{
     engine::{
         ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
@@ -20,22 +27,14 @@ use alloy_rpc_types::{
     }, Withdrawal
 };
 use alloy_sol_types::{sol, SolEventInterface};
-use reth::{
-    api::PayloadTypes, builder::{
-        components::{ComponentsBuilder, PayloadServiceBuilder},
-        node::{NodeTypes, NodeTypesWithEngine},
-        rpc::{EngineValidatorBuilder, RpcAddOns},
-        BuilderContext, FullNodeTypes, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder,
-        PayloadBuilderConfig,
-    }, network::NetworkHandle, primitives::{transaction::WithEncoded, TransactionSigned}, providers::{CanonStateSubscriptions, StateProviderBox, StateProviderFactory}, revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg}, rpc::eth::EthApi, tasks::TaskManager, transaction_pool::TransactionPool
-};
+
 use reth_basic_payload_builder::{
     BasicPayloadJobGenerator, BasicPayloadJobGeneratorConfig, BuildArguments, BuildOutcome,
     PayloadBuilder, PayloadConfig,
 };
-use reth_chainspec::{Chain, ChainSpec, ChainSpecProvider};
+use reth_chainspec::{Chain, ChainSpec, ChainSpecProvider, EthereumHardforks};
 use reth_node_api::{
-    payload::{EngineApiMessageVersion, EngineObjectValidationError, PayloadOrAttributes}, validate_version_specific_fields, AddOnsContext, ConfigureEvm, ConfigureEvmEnv, EngineTypes, EngineValidator, FullNodeComponents, NextBlockEnvAttributes, NodeTypesWithDB, NodeTypesWithDBAdapter, PayloadAttributes, PayloadBuilderAttributes
+    payload::{EngineApiMessageVersion, EngineObjectValidationError, PayloadOrAttributes}, validate_version_specific_fields, AddOnsContext, ConfigureEvm, ConfigureEvmEnv, EngineTypes, EngineValidator, FullNodeComponents, FullNodeTypes, NextBlockEnvAttributes, NodeTypes, NodeTypesWithDB, NodeTypesWithDBAdapter, NodeTypesWithEngine, PayloadAttributes, PayloadAttributesBuilder, PayloadBuilderAttributes, PayloadTypes
 };
 use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_node_ethereum::{
@@ -60,14 +59,12 @@ pub mod engine_api;
 sol!(RollupContract, "TaikoL1.json");
 
 
-/// A custom payload attributes type.
+/// A Gwyneth payload attributes type.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GwynethPayloadAttributes {
     /// An inner payload type
     #[serde(flatten)]
     pub inner: EthPayloadAttributes,
-    /// A custom field
-    pub custom: u64,
     /// Transactions is a field for rollups: the transactions list is forced into the block
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transactions: Option<Vec<TransactionSigned>>,
@@ -76,11 +73,11 @@ pub struct GwynethPayloadAttributes {
     pub gas_limit: Option<u64>,
 }
 
-/// Custom error type used in payload attributes validation
+/// Gwyneth error type used in payload attributes validation
 #[derive(Debug, Error)]
-pub enum CustomError {
-    #[error("Custom field is not zero")]
-    CustomFieldIsNotZero,
+pub enum GwynethError {
+    #[error("Gwyneth field is not zero")]
+    GwynethFieldIsNotZero,
 }
 
 impl PayloadAttributes for GwynethPayloadAttributes {
@@ -122,6 +119,21 @@ impl PartialEq for GwynethPayloadBuilderAttributes {
 
 impl Eq for GwynethPayloadBuilderAttributes {}
 
+
+impl<ChainSpec> PayloadAttributesBuilder<GwynethPayloadAttributes>
+    for LocalPayloadAttributesBuilder<ChainSpec>
+where
+    ChainSpec: Send + Sync + EthereumHardforks + 'static,
+{
+    fn build(&self, timestamp: u64) -> GwynethPayloadAttributes {
+        let attributes = self.build(timestamp);
+        GwynethPayloadAttributes {
+            inner: attributes,
+            transactions: None,
+            gas_limit: None,
+        }
+    }
+}
 
 impl PayloadBuilderAttributes for GwynethPayloadBuilderAttributes {
     type RpcPayloadAttributes = GwynethPayloadAttributes;
@@ -179,7 +191,7 @@ impl PayloadBuilderAttributes for GwynethPayloadBuilderAttributes {
     }
 }
 
-/// Custom engine types - uses a custom payload attributes RPC type, but uses the default
+/// Gwyneth engine types - uses a Gwyneth payload attributes RPC type, but uses the default
 /// payload builder attributes type.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[non_exhaustive]
@@ -198,13 +210,13 @@ impl EngineTypes for GwynethEngineTypes {
     type ExecutionPayloadEnvelopeV4 = ExecutionPayloadEnvelopeV4;
 }
 
-/// Custom engine validator
+/// Gwyneth engine validator
 #[derive(Debug, Clone)]
-pub struct CustomEngineValidator {
+pub struct GwynethEngineValidator {
     chain_spec: Arc<ChainSpec>,
 }
 
-impl<T> EngineValidator<T> for CustomEngineValidator
+impl<T> EngineValidator<T> for GwynethEngineValidator
 where
     T: EngineTypes<PayloadAttributes = GwynethPayloadAttributes>,
 {
@@ -213,7 +225,8 @@ where
         version: EngineApiMessageVersion,
         payload_or_attrs: PayloadOrAttributes<'_, T::PayloadAttributes>,
     ) -> Result<(), EngineObjectValidationError> {
-        validate_version_specific_fields(&self.chain_spec, version, payload_or_attrs)
+        // validate_version_specific_fields(&self.chain_spec, version, payload_or_attrs)
+        Ok(())
     }
 
     fn ensure_well_formed_attributes(
@@ -221,20 +234,20 @@ where
         version: EngineApiMessageVersion,
         attributes: &T::PayloadAttributes,
     ) -> Result<(), EngineObjectValidationError> {
-        validate_version_specific_fields(&self.chain_spec, version, attributes.into())?;
+        // validate_version_specific_fields(&self.chain_spec, version, attributes.into())?;
 
-        // custom validation logic - ensure that the custom field is not zero
-        if attributes.custom == 0 {
-            return Err(EngineObjectValidationError::invalid_params(
-                CustomError::CustomFieldIsNotZero,
-            ))
-        }
+        // // Gwyneth validation logic - ensure that the Gwyneth field is not zero
+        // if attributes.custom == 0 {
+        //     return Err(EngineObjectValidationError::invalid_params(
+        //         GwynethError::GwynethFieldIsNotZero,
+        //     ))
+        // }
 
         Ok(())
     }
 }
 
-/// Custom engine validator builder
+/// Gwyneth engine validator builder
 #[derive(Debug, Default, Clone, Copy)]
 #[non_exhaustive]
 pub struct GwynethEngineValidatorBuilder;
@@ -245,10 +258,10 @@ where
         Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>,
     >,
 {
-    type Validator = CustomEngineValidator;
+    type Validator = GwynethEngineValidator;
 
     async fn build(self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::Validator> {
-        Ok(CustomEngineValidator { chain_spec: ctx.config.chain.clone() })
+        Ok(GwynethEngineValidator { chain_spec: ctx.config.chain.clone() })
     }
 }
 
@@ -282,9 +295,10 @@ pub type GwynethAddOns<N> = RpcAddOns<
 >;
 
 
-impl<N> Node<N> for GwynethNode
+impl<Types, N> Node<N> for GwynethNode
 where
-    N: FullNodeTypes<Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>>,
+    Types: NodeTypesWithDB + NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>,
+    N: FullNodeTypes<Types = Types>,
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,
@@ -294,6 +308,7 @@ where
         EthereumExecutorBuilder,
         EthereumConsensusBuilder,
     >;
+
     type AddOns = GwynethAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
     >;
@@ -313,7 +328,39 @@ where
     }
 }
 
-/// A custom payload service builder that supports the custom engine types
+
+// impl<N> Node<N> for GwynethNode
+// where
+//     N: FullNodeTypes<Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>>,
+// {
+//     type ComponentsBuilder = ComponentsBuilder<
+//         N,
+//         EthereumPoolBuilder,
+//         GwynethPayloadServiceBuilder,
+//         EthereumNetworkBuilder,
+//         EthereumExecutorBuilder,
+//         EthereumConsensusBuilder,
+//     >;
+//     type AddOns = GwynethAddOns<
+//         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
+//     >;
+
+//     fn components_builder(&self) -> Self::ComponentsBuilder {
+//         ComponentsBuilder::default()
+//             .node_types::<N>()
+//             .pool(EthereumPoolBuilder::default())
+//             .payload(GwynethPayloadServiceBuilder::default())
+//             .network(EthereumNetworkBuilder::default())
+//             .executor(EthereumExecutorBuilder::default())
+//             .consensus(EthereumConsensusBuilder::default())
+//     }
+
+//     fn add_ons(&self) -> Self::AddOns {
+//         GwynethAddOns::default()
+//     }
+// }
+
+/// A Gwyneth payload service builder that supports the Gwyneth engine types
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
 pub struct GwynethPayloadServiceBuilder;
@@ -330,7 +377,7 @@ where
         ctx: &BuilderContext<Node>,
         pool: Pool,
     ) -> eyre::Result<PayloadBuilderHandle<<Node::Types as NodeTypesWithEngine>::Engine>> {
-        let payload_builder = CustomPayloadBuilder::default();
+        let payload_builder = GwynethPayloadBuilder::default();
         let conf = ctx.payload_builder_config();
 
         let payload_job_config = BasicPayloadJobGeneratorConfig::default()
@@ -355,12 +402,12 @@ where
     }
 }
 
-/// The type responsible for building custom payloads
+/// The type responsible for building Gwyneth payloads
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
-pub struct CustomPayloadBuilder;
+pub struct GwynethPayloadBuilder;
 
-impl<Pool, Client> PayloadBuilder<Pool, Client> for CustomPayloadBuilder
+impl<Pool, Client> PayloadBuilder<Pool, Client> for GwynethPayloadBuilder
 where
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec = ChainSpec>,
     Pool: TransactionPool,

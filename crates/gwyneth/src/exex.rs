@@ -1,15 +1,18 @@
-use std::{collections::HashMap, marker::PhantomData, sync::{Arc, RwLock}, time::Duration};
+use std::{marker::PhantomData, sync::{Arc, RwLock}, time::Duration};
 
-use alloy_eips::BlockNumHash;
+use alloy_eips::{BlockNumHash, NumHash};
+use alloy_primitives::{address, map::HashMap, Address, B256, U256};
 use alloy_rlp::Decodable;
 use alloy_rpc_types::engine::PayloadStatusEnum;
 use alloy_sol_types::{sol, SolEventInterface};
-use futures::StreamExt;
-use reth::{network::NetworkHandle, rpc::eth::EthApi};
+use futures::{StreamExt, TryStreamExt};
+// use reth::{network::NetworkHandle, rpc::eth::EthApi};
 use reth_chainspec::Head;
-use reth_primitives::{SealedBlockWithSenders, SealedHeader};
+use reth_primitives::{SealedBlock, SealedBlockWithSenders, SealedHeader, TransactionSigned};
 use reth_rpc_builder::auth::AuthServerHandle;
 use tokio::time::sleep;
+use reth_rpc::EthApi;
+use reth_network::NetworkHandle;
 
 use crate::{
     engine_api::EngineApiContext, GwynethEngineTypes, GwynethEngineValidatorBuilder, GwynethNode, GwynethPayloadAttributes, GwynethPayloadBuilderAttributes
@@ -27,8 +30,7 @@ use reth_node_builder::{components::Components, rpc::RpcAddOns, FullNode, NodeAd
 use reth_node_ethereum::{node::EthereumAddOns, BasicBlockExecutorProvider, EthExecutionStrategyFactory, EthExecutorProvider};
 use reth_payload_builder::{EthBuiltPayload, PayloadBuilderHandle};
 use reth_provider::{
-    providers::{BlockchainProvider, BlockchainProvider2},
-    CanonStateSubscriptions, DatabaseProviderFactory, StateProviderFactory,
+    providers::{BlockchainProvider, BlockchainProvider2}, CanonStateSubscriptions, DatabaseProviderFactory, StateProvider, StateProviderFactory
 };
 use reth_transaction_pool::{
     blobstore::DiskFileBlobStore, CoinbaseTipOrdering, EthPooledTransaction,
@@ -36,8 +38,10 @@ use reth_transaction_pool::{
 };
 use alloy_consensus::Transaction;
 use reth_chainspec::EthChainSpec;
-use RollupContract::{BlockProposed, RollupContractEvents};
+use crate::RollupContract::{BlockProposed, RollupContractEvents};
 
+sol!(RollupContract, "TaikoL1.json");
+const ROLLUP_CONTRACT_ADDRESS: Address = address!("9fCF7D13d10dEdF17d0f24C62f0cf4ED462f65b7");
 
 
 type GwynethProvider1 = BlockchainProvider<NodeTypesWithDBAdapter<GwynethNode, Arc< DatabaseEnv>>>;
@@ -230,8 +234,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
     }
 
     pub async fn start(mut self) -> eyre::Result<()> {
-        while let Some(notification) = self.ctx.notifications
-            .recv().await {
+        while let Some(notification) = self.ctx.notifications.try_next().await? {
             if let Some(reverted_chain) = notification.reverted_chain() {
                 self.revert(&reverted_chain)?;
             }
@@ -242,7 +245,8 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     self.commit(&committed_chain, i).await?;
                     self.l1_parents.update(committed_chain.tip(), node.chain_id()).await?;
                 }
-                self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().number))?;
+                let numhash = BlockNumHash::new(committed_chain.tip().number, committed_chain.tip().hash());
+                self.ctx.events.send(ExExEvent::FinishedHeight(numhash))?;
             }
         }
 
@@ -285,18 +289,16 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     gas_limit: None,
                 };
 
-                let l1_state_provider = self
+                let l1_state_provider: Box<dyn StateProvider> = Box::new(self
                     .ctx
                     .provider()
-                    .database_provider_ro()
-                    .unwrap()
-                    .state_provider_by_block_number(block.number)
-                    .unwrap();
+                    .history_by_block_number(block_number.try_into().unwrap())
+                    .unwrap());
+                let sync_provider = HashMap::from([(self.ctx.config.chain.chain().id(), Arc::new(l1_state_provider))]);
 
                 let mut builder_attrs =
-                    GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs).unwrap();
-                builder_attrs.l1_provider =
-                    Some((self.ctx.config.chain.chain().id(), Arc::new(l1_state_provider)));
+                    GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs, 0).unwrap();
+                builder_attrs.sync_provider = Some(sync_provider);
 
                 let payload_id = builder_attrs.inner.payload_id();
                 let parrent_beacon_block_root =
@@ -305,18 +307,18 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 println!("👛 Exex: sending payload_id: {:?}\n tx {:?}", payload_id, builder_attrs.transactions.len());
 
                 // trigger new payload building draining the pool
-                node.payload_builder().new_payload(builder_attrs).await.unwrap();
+                node.payload_builder().send_new_payload(builder_attrs).await.unwrap();
 
                 // wait for the payload builder to have finished building
                 let mut payload =
-                    EthBuiltPayload::new(payload_id, SealedBlock::default(), U256::ZERO);
+                    EthBuiltPayload::new(payload_id, Arc::new(SealedBlock::default()), U256::ZERO, None, None);
                 loop {
                     let result = node.payload_builder().best_payload(payload_id).await;
 
                     if let Some(result) = result {
                         if let Ok(new_payload) = result {
                             payload = new_payload;
-                            if payload.block().body.is_empty() {
+                            if payload.block().body.transactions.is_empty() {
                                 tokio::time::sleep(std::time::Duration::from_millis(20)).await;
                                 continue;
                             }
@@ -355,4 +357,48 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
     fn revert(&mut self, chain: &Chain) -> eyre::Result<()> {
         unimplemented!()
     }
+}
+
+/// Decode chain of blocks into a flattened list of receipt logs, filter only transactions to the
+/// Rollup contract [`ROLLUP_CONTRACT_ADDRESS`] and extract [`RollupContractEvents`].
+fn decode_chain_into_rollup_events(
+    chain: &Chain,
+) -> Vec<(&SealedBlockWithSenders, &TransactionSigned, RollupContractEvents)> {
+    chain
+        // Get all blocks and receipts
+        .blocks_and_receipts()
+        // Get all receipts
+        .flat_map(|(block, receipts)| {
+            block
+                .body
+                .transactions
+                .iter()
+                .zip(receipts.iter().flatten())
+                .map(move |(tx, receipt)| (block, tx, receipt))
+        })
+        // Get all logs from rollup contract
+        .flat_map(|(block, tx, receipt)| {
+            receipt
+                .logs
+                .iter()
+                .filter(|log| log.address == ROLLUP_CONTRACT_ADDRESS)
+                .map(move |log| (block, tx, log))
+        })
+        // Decode and filter rollup events
+        .filter_map(|(block, tx, log)| {
+            RollupContractEvents::decode_raw_log(log.topics(), &log.data.data, true)
+                .ok()
+                .map(|event| (block, tx, event))
+        })
+        .collect()
+}
+
+
+fn decode_transactions(tx_list: &[u8]) -> Vec<TransactionSigned> {
+    #[allow(clippy::useless_asref)]
+    Vec::<TransactionSigned>::decode(&mut tx_list.as_ref()).unwrap_or_else(|e| {
+        // If decoding fails we need to make an empty block
+        println!("decode_transactions not successful: {e:?}, use empty tx_list");
+        vec![]
+    })
 }
