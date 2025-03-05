@@ -7,29 +7,26 @@ use reth_db::{
     DatabaseEnv,
 };
 use reth_node_builder::{
-    engine_tree_config::TreeConfig, DefaultNodeLauncher, EngineNodeLauncher, Node, NodeBuilder, WithLaunchContext
+    EngineNodeLauncher, Node, NodeBuilder,
+    WithLaunchContext,
 };
 use reth_node_core::{
-    args::{
-        DatadirArgs, DiscoveryArgs, NetworkArgs, RpcServerArgs
-    },
+    args::{DiscoveryArgs, NetworkArgs, RpcServerArgs},
     dirs::{DataDirPath, MaybePlatformPath},
     node_config::NodeConfig,
 };
 use reth_provider::providers::BlockchainProvider2;
-use reth_tasks::{TaskExecutor, TaskManager};
+use reth_tasks::TaskExecutor;
 
 use std::{future::Future, path::PathBuf, sync::Arc};
 
 use crate::{exex::GwynethFullNode, GwynethAddOns, GwynethNode};
-
 
 pub const DEFAULT_DISCOVERY_PORT: u16 = 30303;
 
 /// Gwyneth node command line arguments
 #[derive(Debug, Clone, Default, Args, PartialEq, Eq)]
 pub struct GwynethArgs {
-
     /// Chain IDs for Gwyneth nodes
     #[arg(long = "l2.chain_ids", required = true, num_args = 0..,)]
     pub chain_ids: Vec<u64>,
@@ -61,7 +58,10 @@ pub struct GwynethArgs {
 
 impl GwynethArgs {
     /// Build node configs for Gwyneth nodes
-    pub fn build_node_configs(&self, l1_node_config: &NodeConfig<ChainSpec>) -> Vec<NodeConfig<ChainSpec>> {
+    pub fn build_node_configs(
+        &self,
+        l1_node_config: &NodeConfig<ChainSpec>,
+    ) -> Vec<NodeConfig<ChainSpec>> {
         assert_eq!(self.chain_ids.len(), self.datadirs.len());
         let mut network_config = NetworkArgs {
             // No p2p btw gwyneth nodes for now, otherwise we have one p2p instance per chain
@@ -76,10 +76,7 @@ impl GwynethArgs {
         };
 
         let chain_spec_builder = ChainSpecBuilder::default()
-            .genesis(
-                serde_json::from_str(include_str!("../genesis.json"))
-                    .unwrap(),
-            )
+            .genesis(serde_json::from_str(include_str!("../genesis.json")).unwrap())
             .cancun_activated();
 
         let node_configs = self
@@ -88,12 +85,12 @@ impl GwynethArgs {
             .enumerate()
             .map(|(idx, chain_id)| {
                 let chain_spec =
-                    chain_spec_builder.clone().chain(Chain::from_id(chain_id.clone())).build();
+                    chain_spec_builder.clone().chain(Chain::from_id(*chain_id)).build();
                 let mut rpc = RpcServerArgs::default().with_http();
                 rpc.http_api = Some(reth_rpc_builder::RpcModuleSelection::Standard);
                 rpc.adjust_instance_ports((idx + 2) as u16);
-                rpc.http_addr = l1_node_config.rpc.http_addr.clone();
-                rpc.auth_addr = l1_node_config.rpc.auth_addr.clone();
+                rpc.http_addr = l1_node_config.rpc.http_addr;
+                rpc.auth_addr = l1_node_config.rpc.auth_addr;
 
                 if let Some(ports) = self.ports.clone() {
                     rpc = rpc.set_http_port(ports[idx]);
@@ -166,7 +163,6 @@ impl GwynethArgs {
     }
 }
 
-
 /// Create Gwyneth nodes with the given args and l1 node config
 pub async fn create_gwyneth_nodes(
     arg: &GwynethArgs,
@@ -179,7 +175,7 @@ pub async fn create_gwyneth_nodes(
             ctx.with_types_and_provider::<GwynethNode, BlockchainProvider2<_>>()
                 .with_components(GwynethNode::components_builder(&Default::default()))
                 .with_add_ons(GwynethAddOns::default())
-                .launch_with_fn(|launch_ctx| { 
+                .launch_with_fn(|launch_ctx| {
                     let launcher = EngineNodeLauncher::new(
                         launch_ctx.task_executor.clone(),
                         launch_ctx.builder.config.datadir(),
@@ -190,9 +186,7 @@ pub async fn create_gwyneth_nodes(
         })
         .await
         .iter()
-        .map(|handle| {
-            GwynethFullNode::Provider2(handle.node.clone())
-        })
+        .map(|handle| GwynethFullNode::Provider2(handle.node.clone()))
         .collect::<Vec<_>>()
         // todo!()
     } else {
@@ -224,12 +218,12 @@ mod tests {
                 ipc_paths: Some(vec!["/tmp/ipc-1".into(), "/tmp/ipc-2".into()]),
                 rbuilder_config: Some("path/to/rbuilder.toml".into()),
                 experimental: false,
-            }, 
-            TaskManager::current().executor(), 
-            &NodeConfig::default()
-        ).await;
+            },
+            TaskManager::current().executor(),
+            &NodeConfig::default(),
+        )
+        .await;
     }
-
 
     #[test]
     fn parse_common_node_command_l2_args() {
@@ -271,6 +265,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn parse_l2_args() {
-        let _ = NodeCommand::<EthereumChainSpecParser, GwynethArgs>::try_parse_from(["reth"]).unwrap();
+        let _ =
+            NodeCommand::<EthereumChainSpecParser, GwynethArgs>::try_parse_from(["reth"]).unwrap();
     }
 }

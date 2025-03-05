@@ -1,21 +1,26 @@
 use std::{collections::HashMap, convert::Infallible, path::PathBuf, sync::Arc};
 
-use alloy_consensus::Header;
-use reth_transaction_pool::TransactionPool;
-use crate::exex::{GwynethFullNode1, GwynethFullNode2};
+use crate::exex::GwynethFullNode1;
+use reth_chain_state::CanonStateSubscriptions;
 use reth_db::DatabaseEnv;
-use reth_node_builder::{components::{ComponentsBuilder, PayloadServiceBuilder}, rpc::{EngineValidatorBuilder, RpcAddOns}, BuilderContext, DefaultNodeLauncher, EngineNodeLauncher, LaunchNode, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder};
-use reth_primitives::{transaction::WithEncoded, EthPrimitives, TransactionSigned};
-use reth_provider::{providers::{BlockchainProvider2, ProviderNodeTypes}, StateProviderBox, StateProviderFactory};
-use reth_tasks::{TaskExecutor, TaskManager};
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use reth_rpc::EthApi;
+use reth_engine_local::LocalPayloadAttributesBuilder;
 use reth_network::NetworkHandle;
 use reth_node_builder::PayloadBuilderConfig;
-use reth_chain_state::CanonStateSubscriptions;
-use reth_engine_local::LocalPayloadAttributesBuilder;
-
+use reth_node_builder::{
+    components::{ComponentsBuilder, PayloadServiceBuilder},
+    rpc::{EngineValidatorBuilder, RpcAddOns},
+    BuilderContext, LaunchNode, Node, NodeAdapter,
+    NodeBuilder, NodeComponentsBuilder,
+};
+use reth_primitives::{transaction::WithEncoded, EthPrimitives, TransactionSigned};
+use reth_provider::{
+    StateProviderBox, StateProviderFactory,
+};
+use reth_rpc::EthApi;
+use reth_tasks::TaskManager;
+use reth_transaction_pool::TransactionPool;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use alloy_eips::eip4895::Withdrawals;
 use alloy_genesis::Genesis;
@@ -24,24 +29,30 @@ use alloy_rpc_types::{
     engine::{
         ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
         ExecutionPayloadV1, PayloadAttributes as EthPayloadAttributes, PayloadId,
-    }, Withdrawal
+    },
+    Withdrawal,
 };
-use alloy_sol_types::{sol, SolEventInterface};
+use alloy_sol_types::sol;
 
+use builder::default_gwyneth_payload;
 use reth_basic_payload_builder::{
     BasicPayloadJobGenerator, BasicPayloadJobGeneratorConfig, BuildArguments, BuildOutcome,
     PayloadBuilder, PayloadConfig,
 };
 use reth_chainspec::{Chain, ChainSpec, ChainSpecProvider, EthereumHardforks};
 use reth_node_api::{
-    payload::{EngineApiMessageVersion, EngineObjectValidationError, PayloadOrAttributes}, validate_version_specific_fields, AddOnsContext, ConfigureEvm, ConfigureEvmEnv, EngineTypes, EngineValidator, FullNodeComponents, FullNodeTypes, NextBlockEnvAttributes, NodeTypes, NodeTypesWithDB, NodeTypesWithDBAdapter, NodeTypesWithEngine, PayloadAttributes, PayloadAttributesBuilder, PayloadBuilderAttributes, PayloadTypes
+    payload::{EngineApiMessageVersion, EngineObjectValidationError, PayloadOrAttributes}, AddOnsContext, ConfigureEvmEnv, EngineTypes,
+    EngineValidator, FullNodeComponents, FullNodeTypes, NextBlockEnvAttributes, NodeTypes,
+    NodeTypesWithDB, NodeTypesWithEngine, PayloadAttributes,
+    PayloadAttributesBuilder, PayloadBuilderAttributes, PayloadTypes,
 };
 use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_node_ethereum::{
     node::{
-        EthereumAddOns, EthereumConsensusBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder, EthereumPoolBuilder
+        EthereumConsensusBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder,
+        EthereumPoolBuilder,
     },
-    EthEvmConfig, EthereumNode,
+    EthEvmConfig,
 };
 use reth_payload_builder::{
     EthBuiltPayload, EthPayloadBuilderAttributes, PayloadBuilderError, PayloadBuilderHandle,
@@ -49,15 +60,13 @@ use reth_payload_builder::{
 };
 use reth_tracing::{RethTracer, Tracer};
 use reth_trie_db::MerklePatriciaTrie;
-use builder::default_gwyneth_payload;
 
 pub mod builder;
 pub mod cli;
-pub mod exex;
 pub mod engine_api;
+pub mod exex;
 
 sol!(RollupContract, "TaikoL1.json");
-
 
 /// A Gwyneth payload attributes type.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,12 +122,11 @@ impl PartialEq for GwynethPayloadBuilderAttributes {
         self.inner == other.inner
             && self.transactions == other.transactions
             && self.gas_limit == other.gas_limit
-            // && self.sync_provider == other.sync_provider
+        // && self.sync_provider == other.sync_provider
     }
 }
 
 impl Eq for GwynethPayloadBuilderAttributes {}
-
 
 impl<ChainSpec> PayloadAttributesBuilder<GwynethPayloadAttributes>
     for LocalPayloadAttributesBuilder<ChainSpec>
@@ -127,11 +135,7 @@ where
 {
     fn build(&self, timestamp: u64) -> GwynethPayloadAttributes {
         let attributes = self.build(timestamp);
-        GwynethPayloadAttributes {
-            inner: attributes,
-            transactions: None,
-            gas_limit: None,
-        }
+        GwynethPayloadAttributes { inner: attributes, transactions: None, gas_limit: None }
     }
 }
 
@@ -160,7 +164,8 @@ impl PayloadBuilderAttributes for GwynethPayloadBuilderAttributes {
             transactions,
             gas_limit: attributes.gas_limit,
             sync_provider: None,
-        })    }
+        })
+    }
 
     fn payload_id(&self) -> PayloadId {
         self.inner.id
@@ -294,10 +299,10 @@ pub type GwynethAddOns<N> = RpcAddOns<
     GwynethEngineValidatorBuilder,
 >;
 
-
 impl<Types, N> Node<N> for GwynethNode
 where
-    Types: NodeTypesWithDB + NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>,
+    Types:
+        NodeTypesWithDB + NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>,
     N: FullNodeTypes<Types = Types>,
 {
     type ComponentsBuilder = ComponentsBuilder<
@@ -327,38 +332,6 @@ where
         GwynethAddOns::default()
     }
 }
-
-
-// impl<N> Node<N> for GwynethNode
-// where
-//     N: FullNodeTypes<Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>>,
-// {
-//     type ComponentsBuilder = ComponentsBuilder<
-//         N,
-//         EthereumPoolBuilder,
-//         GwynethPayloadServiceBuilder,
-//         EthereumNetworkBuilder,
-//         EthereumExecutorBuilder,
-//         EthereumConsensusBuilder,
-//     >;
-//     type AddOns = GwynethAddOns<
-//         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
-//     >;
-
-//     fn components_builder(&self) -> Self::ComponentsBuilder {
-//         ComponentsBuilder::default()
-//             .node_types::<N>()
-//             .pool(EthereumPoolBuilder::default())
-//             .payload(GwynethPayloadServiceBuilder::default())
-//             .network(EthereumNetworkBuilder::default())
-//             .executor(EthereumExecutorBuilder::default())
-//             .consensus(EthereumConsensusBuilder::default())
-//     }
-
-//     fn add_ons(&self) -> Self::AddOns {
-//         GwynethAddOns::default()
-//     }
-// }
 
 /// A Gwyneth payload service builder that supports the Gwyneth engine types
 #[derive(Debug, Default, Clone)]
@@ -429,7 +402,8 @@ where
 
         let chain_spec = client.chain_spec();
         let evm_config = EthEvmConfig::new(chain_spec.clone());
-        let (cfg_env, block_env) = evm_config.next_cfg_and_block_env(parent_header.header(), next_attributes).unwrap();
+        let (cfg_env, block_env) =
+            evm_config.next_cfg_and_block_env(parent_header.header(), next_attributes).unwrap();
 
         default_gwyneth_payload(evm_config, args, cfg_env, block_env)
     }
@@ -476,4 +450,3 @@ async fn mainn() -> eyre::Result<()> {
 
     handle.node_exit_future.await
 }
-

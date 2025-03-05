@@ -197,30 +197,6 @@ impl NodeTypes for GwynethNode {
     type StateCommitment = MerklePatriciaTrie;
 }
 
-// impl GwynethNode {
-//     fn components<Node>() -> ComponentsBuilder<
-//         Node,
-//         EthereumPayloadBuilder,
-//         GwynethPayloadBuilder,
-//         EthereumNetworkBuilder,
-//         EthereumExecutorBuilder,
-//         EthereumConsensusBuilder
-//     > 
-//     where
-//         Node: FullNodeTypes<
-//             Types: NodeTypesWithEngine<Engine = GwynethEngineTypes, ChainSpec = ChainSpec>,
-//         >,
-//     {
-//     ComponentsBuilder::default()
-//         .node_types::<Node>()
-//         .pool(EthereumPayloadBuilder::default())
-//         .payload(GwynethPayloadBuilder::default())
-//         .network(EthereumNetworkBuilder::default())
-//         .executor(EthereumExecutorBuilder::default())
-//         .consensus(EthereumConsensusBuilder::default())
-//     }
-// }
-
 impl GwynethNode {
     /// Returns a [`ComponentsBuilder`] configured for a regular Ethereum node.
     pub fn components<Node>() -> ComponentsBuilder<
@@ -270,13 +246,6 @@ where
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
         Self::components()
-        // ComponentsBuilder::default()
-        // .node_types::<N>()
-        // .pool(EthereumPayloadBuilder::default())
-        // .payload(GwynethPayloadBuilder::default())
-        // .network(EthereumNetworkBuilder::default())
-        // .executor(EthereumExecutorBuilder::default())
-        // .consensus(EthereumConsensusBuilder::default())
     }
 
     fn add_ons(&self) -> Self::AddOns {

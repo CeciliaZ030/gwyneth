@@ -1,73 +1,76 @@
-use std::{marker::PhantomData, sync::{Arc, RwLock}, time::Duration};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, RwLock},
+};
 
-use alloy_eips::{BlockNumHash, NumHash};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::{address, map::HashMap, Address, B256, U256};
 use alloy_rlp::Decodable;
 use alloy_rpc_types::engine::PayloadStatusEnum;
 use alloy_sol_types::{sol, SolEventInterface};
 use futures::{StreamExt, TryStreamExt};
 // use reth::{network::NetworkHandle, rpc::eth::EthApi};
-use reth_chainspec::Head;
-use reth_primitives::{SealedBlock, SealedBlockWithSenders, SealedHeader, TransactionSigned};
-use reth_rpc_builder::auth::AuthServerHandle;
-use tokio::time::sleep;
-use reth_rpc::EthApi;
 use reth_network::NetworkHandle;
+use reth_primitives::{SealedBlock, SealedBlockWithSenders, SealedHeader, TransactionSigned};
+use reth_rpc::EthApi;
 
+use crate::RollupContract::{BlockProposed, RollupContractEvents};
 use crate::{
-    engine_api::EngineApiContext, GwynethEngineTypes, GwynethEngineValidatorBuilder, GwynethNode, GwynethPayloadAttributes, GwynethPayloadBuilderAttributes
+    engine_api::EngineApiContext, GwynethEngineTypes, GwynethEngineValidatorBuilder, GwynethNode,
+    GwynethPayloadAttributes, GwynethPayloadBuilderAttributes,
 };
+use alloy_consensus::Transaction;
+use reth_chainspec::EthChainSpec;
 use reth_consensus::Consensus;
-use reth_db::{test_utils::TempDatabase, DatabaseEnv};
+use reth_db::DatabaseEnv;
 use reth_ethereum_engine_primitives::EthPayloadAttributes;
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent};
 use reth_node_api::{
-    BuiltPayload, FullNodeComponents, FullNodeTypes, FullNodeTypesAdapter, NodeAddOns, NodeTypesWithDBAdapter, PayloadBuilder, PayloadBuilderAttributes
+    BuiltPayload, FullNodeComponents, FullNodeTypesAdapter,
+    NodeTypesWithDBAdapter, PayloadBuilder, PayloadBuilderAttributes,
 };
-use reth_node_builder::{components::Components, rpc::RpcAddOns, FullNode, NodeAdapter, NodeComponents};
-use reth_node_ethereum::{node::EthereumAddOns, BasicBlockExecutorProvider, EthExecutionStrategyFactory, EthExecutorProvider};
+use reth_node_builder::{
+    components::Components, rpc::RpcAddOns, FullNode, NodeAdapter, NodeComponents,
+};
+use reth_node_ethereum::{
+    BasicBlockExecutorProvider, EthExecutionStrategyFactory,
+};
 use reth_payload_builder::{EthBuiltPayload, PayloadBuilderHandle};
 use reth_provider::{
-    providers::{BlockchainProvider, BlockchainProvider2}, CanonStateSubscriptions, DatabaseProviderFactory, StateProvider, StateProviderFactory
+    providers::{BlockchainProvider, BlockchainProvider2},
+    CanonStateSubscriptions, StateProvider, StateProviderFactory,
 };
 use reth_transaction_pool::{
     blobstore::DiskFileBlobStore, CoinbaseTipOrdering, EthPooledTransaction,
     EthTransactionValidator, Pool, TransactionValidationTaskExecutor,
 };
-use alloy_consensus::Transaction;
-use reth_chainspec::EthChainSpec;
-use crate::RollupContract::{BlockProposed, RollupContractEvents};
 
 sol!(RollupContract, "TaikoL1.json");
 const ROLLUP_CONTRACT_ADDRESS: Address = address!("9fCF7D13d10dEdF17d0f24C62f0cf4ED462f65b7");
 
-
-type GwynethProvider1 = BlockchainProvider<NodeTypesWithDBAdapter<GwynethNode, Arc< DatabaseEnv>>>;
-type GwynethProvider2 = BlockchainProvider2<NodeTypesWithDBAdapter<GwynethNode, Arc< DatabaseEnv>>>;
+type GwynethProvider1 = BlockchainProvider<NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>>;
+type GwynethProvider2 = BlockchainProvider2<NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>>;
 
 type NodeDapter1 = NodeAdapter<
-    FullNodeTypesAdapter<
-        NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>,
-        GwynethProvider1
-    >,
+    FullNodeTypesAdapter<NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>, GwynethProvider1>,
     Components<
         FullNodeTypesAdapter<
             NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>,
-            GwynethProvider1
+            GwynethProvider1,
         >,
         Pool<
             TransactionValidationTaskExecutor<
-                EthTransactionValidator<GwynethProvider1, EthPooledTransaction>
+                EthTransactionValidator<GwynethProvider1, EthPooledTransaction>,
             >,
             CoinbaseTipOrdering<EthPooledTransaction>,
-            DiskFileBlobStore
+            DiskFileBlobStore,
         >,
         EthEvmConfig,
         BasicBlockExecutorProvider<EthExecutionStrategyFactory>,
-        Arc<dyn Consensus>
-    >
+        Arc<dyn Consensus>,
+    >,
 >;
 
 pub type GwynethFullNode1 = FullNode<
@@ -78,39 +81,36 @@ pub type GwynethFullNode1 = FullNode<
             GwynethProvider1,
             Pool<
                 TransactionValidationTaskExecutor<
-                    EthTransactionValidator<GwynethProvider1, EthPooledTransaction>
+                    EthTransactionValidator<GwynethProvider1, EthPooledTransaction>,
                 >,
                 CoinbaseTipOrdering<EthPooledTransaction>,
-                DiskFileBlobStore
+                DiskFileBlobStore,
             >,
             NetworkHandle,
-            EthEvmConfig
+            EthEvmConfig,
         >,
-        GwynethEngineValidatorBuilder
-    >
+        GwynethEngineValidatorBuilder,
+    >,
 >;
 
 type NodeDapter2 = NodeAdapter<
-    FullNodeTypesAdapter<
-        NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>,
-        GwynethProvider2
-    >,
+    FullNodeTypesAdapter<NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>, GwynethProvider2>,
     Components<
         FullNodeTypesAdapter<
             NodeTypesWithDBAdapter<GwynethNode, Arc<DatabaseEnv>>,
-            GwynethProvider2
+            GwynethProvider2,
         >,
         Pool<
             TransactionValidationTaskExecutor<
-                EthTransactionValidator<GwynethProvider2, EthPooledTransaction>
+                EthTransactionValidator<GwynethProvider2, EthPooledTransaction>,
             >,
             CoinbaseTipOrdering<EthPooledTransaction>,
-            DiskFileBlobStore
+            DiskFileBlobStore,
         >,
         EthEvmConfig,
         BasicBlockExecutorProvider<EthExecutionStrategyFactory>,
-        Arc<dyn Consensus>
-    >
+        Arc<dyn Consensus>,
+    >,
 >;
 
 pub type GwynethFullNode2 = FullNode<
@@ -121,16 +121,16 @@ pub type GwynethFullNode2 = FullNode<
             GwynethProvider2,
             Pool<
                 TransactionValidationTaskExecutor<
-                    EthTransactionValidator<GwynethProvider2, EthPooledTransaction>
+                    EthTransactionValidator<GwynethProvider2, EthPooledTransaction>,
                 >,
                 CoinbaseTipOrdering<EthPooledTransaction>,
-                DiskFileBlobStore
+                DiskFileBlobStore,
             >,
             NetworkHandle,
-            EthEvmConfig
+            EthEvmConfig,
         >,
-        GwynethEngineValidatorBuilder
-    >
+        GwynethEngineValidatorBuilder,
+    >,
 >;
 
 pub enum GwynethFullNode {
@@ -139,10 +139,10 @@ pub enum GwynethFullNode {
 }
 
 impl GwynethFullNode {
-    pub fn chain_id(&self) -> u64{
+    pub fn chain_id(&self) -> u64 {
         match self {
-            GwynethFullNode::Provider1(node) => (node.chain_spec().chain().id()),
-            GwynethFullNode::Provider2(node) => (node.chain_spec().chain().id()),
+            GwynethFullNode::Provider1(node) => node.chain_spec().chain().id(),
+            GwynethFullNode::Provider2(node) => node.chain_spec().chain().id(),
         }
     }
 
@@ -153,9 +153,6 @@ impl GwynethFullNode {
         }
     }
 }
-
-
-
 
 #[derive(Debug)]
 pub struct L1ParentState {
@@ -169,16 +166,20 @@ pub struct L1ParentStates(Arc<HashMap<u64, RwLock<L1ParentState>>>);
 
 impl L1ParentStates {
     pub fn new(nodes: &Vec<GwynethFullNode>) -> Self {
-        let states = nodes.iter().map(|node| {
-            let chain_id = node.chain_id();
-            let state = RwLock::new(L1ParentState {block_number: 0, header: None});
-            (chain_id, state)
-        }).collect::<HashMap<_, _>>();
+        let states = nodes
+            .iter()
+            .map(|node| {
+                let chain_id = node.chain_id();
+                let state = RwLock::new(L1ParentState { block_number: 0, header: None });
+                (chain_id, state)
+            })
+            .collect::<HashMap<_, _>>();
         L1ParentStates(Arc::new(states))
     }
 
     pub fn get(&self, chain_id: u64) -> (u64, Option<SealedHeader>) {
-        let state = self.0
+        let state = self
+            .0
             .get(&chain_id)
             .expect("L1ParentStates: chain_id not found")
             .read()
@@ -186,8 +187,9 @@ impl L1ParentStates {
         (state.block_number, state.header.clone())
     }
 
-    pub async fn update (&self, block: &SealedBlockWithSenders, chain_id: u64) -> eyre::Result<()> {
-        let mut state = self.0
+    pub async fn update(&self, block: &SealedBlockWithSenders, chain_id: u64) -> eyre::Result<()> {
+        let mut state = self
+            .0
             .get(&chain_id)
             .expect("L1ParentStates: chain_id not found")
             .write()
@@ -198,8 +200,6 @@ impl L1ParentStates {
     }
 }
 
-
-
 pub struct Rollup<Node: reth_node_api::FullNodeComponents> {
     ctx: ExExContext<Node>,
     nodes: Vec<GwynethFullNode>,
@@ -208,7 +208,11 @@ pub struct Rollup<Node: reth_node_api::FullNodeComponents> {
 }
 
 impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
-    pub async fn new(ctx: ExExContext<Node>, nodes: Vec<GwynethFullNode>, l1_parents: L1ParentStates) -> eyre::Result<Self> {
+    pub async fn new(
+        ctx: ExExContext<Node>,
+        nodes: Vec<GwynethFullNode>,
+        l1_parents: L1ParentStates,
+    ) -> eyre::Result<Self> {
         let mut engine_apis = Vec::new();
         for node in &nodes {
             match node {
@@ -240,12 +244,17 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
             }
 
             if let Some(committed_chain) = notification.committed_chain() {
-                println!("[reth] Exex Gwyneth: synced_l1_header 🎃 {:?}, synced_l1_number: {:?}", committed_chain.tip().hash(), committed_chain.tip().number);
+                println!(
+                    "[reth] Exex Gwyneth: synced_l1_header 🎃 {:?}, synced_l1_number: {:?}",
+                    committed_chain.tip().hash(),
+                    committed_chain.tip().number
+                );
                 for (i, node) in self.nodes.iter().enumerate() {
                     self.commit(&committed_chain, i).await?;
                     self.l1_parents.update(committed_chain.tip(), node.chain_id()).await?;
                 }
-                let numhash = BlockNumHash::new(committed_chain.tip().number, committed_chain.tip().hash());
+                let numhash =
+                    BlockNumHash::new(committed_chain.tip().number, committed_chain.tip().hash());
                 self.ctx.events.send(ExExEvent::FinishedHeight(numhash))?;
             }
         }
@@ -271,7 +280,7 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     .filter(|tx| tx.chain_id() == Some(node.chain_id()))
                     .collect();
 
-                if filtered_transactions.len() == 0 {
+                if filtered_transactions.is_empty() {
                     self.l1_parents.update(block, node.chain_id()).await?;
                     println!("no transactions for chain: {}", node.chain_id());
                     continue;
@@ -289,12 +298,16 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                     gas_limit: None,
                 };
 
-                let l1_state_provider: Box<dyn StateProvider> = Box::new(self
-                    .ctx
-                    .provider()
-                    .history_by_block_number(block_number.try_into().unwrap())
-                    .unwrap());
-                let sync_provider = HashMap::from([(self.ctx.config.chain.chain().id(), Arc::new(l1_state_provider))]);
+                let l1_state_provider: Box<dyn StateProvider> = Box::new(
+                    self.ctx
+                        .provider()
+                        .history_by_block_number(block_number.try_into().unwrap())
+                        .unwrap(),
+                );
+                let sync_provider = HashMap::from([(
+                    self.ctx.config.chain.chain().id(),
+                    Arc::new(l1_state_provider),
+                )]);
 
                 let mut builder_attrs =
                     GwynethPayloadBuilderAttributes::try_new(B256::ZERO, attrs, 0).unwrap();
@@ -304,14 +317,23 @@ impl<Node: reth_node_api::FullNodeComponents> Rollup<Node> {
                 let parrent_beacon_block_root =
                     builder_attrs.inner.parent_beacon_block_root.unwrap();
 
-                println!("👛 Exex: sending payload_id: {:?}\n tx {:?}", payload_id, builder_attrs.transactions.len());
+                println!(
+                    "👛 Exex: sending payload_id: {:?}\n tx {:?}",
+                    payload_id,
+                    builder_attrs.transactions.len()
+                );
 
                 // trigger new payload building draining the pool
                 node.payload_builder().send_new_payload(builder_attrs).await.unwrap();
 
                 // wait for the payload builder to have finished building
-                let mut payload =
-                    EthBuiltPayload::new(payload_id, Arc::new(SealedBlock::default()), U256::ZERO, None, None);
+                let mut payload = EthBuiltPayload::new(
+                    payload_id,
+                    Arc::new(SealedBlock::default()),
+                    U256::ZERO,
+                    None,
+                    None,
+                );
                 loop {
                     let result = node.payload_builder().best_payload(payload_id).await;
 
@@ -392,7 +414,6 @@ fn decode_chain_into_rollup_events(
         })
         .collect()
 }
-
 
 fn decode_transactions(tx_list: &[u8]) -> Vec<TransactionSigned> {
     #[allow(clippy::useless_asref)]

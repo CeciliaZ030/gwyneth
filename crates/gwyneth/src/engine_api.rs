@@ -1,16 +1,16 @@
-use std::marker::PhantomData;
+use alloy_primitives::B256;
+use alloy_rpc_types::engine::{ExecutionPayloadV3, ForkchoiceState, PayloadStatusEnum};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{transport::HttpBackend, HttpClient},
 };
-use alloy_rpc_types::engine::{ExecutionPayloadV3, ForkchoiceState, PayloadStatusEnum};
 use reth_ethereum_engine_primitives::ExecutionPayloadEnvelopeV3;
 use reth_node_api::EngineTypes;
 use reth_payload_builder::PayloadId;
-use alloy_primitives::B256;
 use reth_provider::CanonStateNotificationStream;
 use reth_rpc_api::EngineApiClient;
 use reth_rpc_layer::AuthClientService;
+use std::marker::PhantomData;
 /// Helper for engine api operations
 pub struct EngineApiContext<E> {
     pub canonical_stream: CanonStateNotificationStream,
